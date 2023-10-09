@@ -1,0 +1,26 @@
+with "config/fighting_game_ada_config.gpr";
+project Fighting_Game_Ada is
+
+   for Source_Dirs use ("src/", "config/", "allegro_binding_src/");
+   for Object_Dir use "obj/" & Fighting_Game_Ada_Config.Build_Profile;
+   for Create_Missing_Dirs use "True";
+   for Exec_Dir use "bin";
+   for Main use ("fighting_game_ada.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use Fighting_Game_Ada_Config.Ada_Compiler_Switches;
+   end Compiler;
+
+   package Binder is
+      for Switches ("Ada") use ("-Es"); --  Symbolic traceback
+   end Binder;
+
+  package Linker is
+    for Default_Switches ("Ada") use ("-L/usr/lib", "-lallegro", "-lallegro_font", "-lallegro_image", "-lallegro_primitives");
+  end Linker;
+
+   package Install is
+      for Artifacts (".") use ("share");
+   end Install;
+
+end Fighting_Game_Ada;

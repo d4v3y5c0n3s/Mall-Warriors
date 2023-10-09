@@ -1,0 +1,12 @@
+name = "fighting_game_ada"
+description = "Shiny new project"
+version = "0.1.0-dev"
+
+authors = ["Troy Jacobs"]
+maintainers = ["Troy Jacobs <tmj9001@gmail.com>"]
+maintainers-logins = ["d4v3y5c0n3s"]
+
+executables = ["fighting_game_ada"]
+
+[build-switches]
+"*".style_checks = "No"
