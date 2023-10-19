@@ -16,7 +16,7 @@ project Fighting_Game_Ada is
    end Binder;
 
   package Linker is
-    for Default_Switches ("Ada") use ("-L/usr/lib", "-lallegro", "-lallegro_font", "-lallegro_image", "-lallegro_primitives");
+    for Default_Switches ("Ada") use ("-L/usr/lib", "-lallegro", "-lallegro_font", "-lallegro_image", "-lallegro_primitives", "-lallegro_audio", "-lallegro_acodec");
   end Linker;
 
    package Install is

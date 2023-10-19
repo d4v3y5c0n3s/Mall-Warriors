@@ -13,8 +13,12 @@ with allegro5_color_h; use allegro5_color_h;
 with allegro5_drawing_h; use allegro5_drawing_h;
 with allegro_font_h; use allegro_font_h;
 with allegro5_bitmap_io_h; use allegro5_bitmap_io_h;
-with Game_Constants; use Game_Constants;
+with allegro5_transformations_h; use allegro5_transformations_h;
+with allegro_audio_h; use allegro_audio_h;
+with allegro_acodec_h; use allegro_acodec_h;
+with Globals; use Globals;
 with Fighter;
+with Move;
 with Cool_Math; use Cool_Math;
 
 procedure Fighting_Game_Ada is
@@ -27,7 +31,9 @@ procedure Fighting_Game_Ada is
   Color_Black : ALLEGRO_COLOR;
   Text_Color : ALLEGRO_COLOR;
   basic_font : access ALLEGRO_FONT;
+  transform : access ALLEGRO_TRANSFORM := new ALLEGRO_TRANSFORM;
   frame : Natural := 0;
+  camera_pos : Position;
   
   Allegro_Initialization_Failure : exception;
   
@@ -51,7 +57,10 @@ begin
   al_install_keyboard and
   al_init_primitives_addon and
   al_init_font_addon and
-  al_init_image_addon then
+  al_init_image_addon and
+  al_install_audio and
+  al_init_acodec_addon and
+  al_reserve_samples(32) then
     Q := al_create_event_queue;
     Display := al_create_display(800, 600);
     DisplayEventSrc := al_get_display_event_source(Display);
@@ -63,10 +72,13 @@ begin
     Text_Color := al_map_rgb(255, 255, 255);
     basic_font := al_create_builtin_font;
     
-    player_one.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/2023-09-21-194004.jpg")));
-    player_two.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/2023-09-21-194004.jpg")));
+    player_one.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
+    player_two.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
     player_one.pos := Position'(200.0, 400.0);
     player_two.pos := Position'(600.0, 400.0);
+    Fighter.Add_Move(player_one,
+      Move.Move'(command => new Move.Move_Input_Sequence'(new Input_Tree_Node'(ID => up), new Input_Tree_Node'(ID => atk_1))),
+      0);
     
     loop
       frame_start_time := Clock;
@@ -78,50 +90,50 @@ begin
             when 10 => -- key down
               case Ev.keyboard.keycode is
                 when 23 =>-- w
-                  Fighter.Press_Input(player_one, Fighter.up, frame);
+                  Fighter.Press_Input(player_one, Globals.up, frame);
                 when 1 =>-- a
-                  Fighter.Press_Input(player_one, Fighter.left, frame);
+                  Fighter.Press_Input(player_one, Globals.left, frame);
                 when 19 =>-- s
-                  Fighter.Press_Input(player_one, Fighter.down, frame);
+                  Fighter.Press_Input(player_one, Globals.down, frame);
                 when 4 =>-- d
-                  Fighter.Press_Input(player_one, Fighter.right, frame);
+                  Fighter.Press_Input(player_one, Globals.right, frame);
                 when 21 =>-- u
-                  Fighter.Press_Input(player_one, Fighter.atk_1, frame);
+                  Fighter.Press_Input(player_one, Globals.atk_1, frame);
                 when 9 =>-- i
-                  Fighter.Press_Input(player_one, Fighter.atk_2, frame);
+                  Fighter.Press_Input(player_one, Globals.atk_2, frame);
                 when 15 =>-- o
-                  Fighter.Press_Input(player_one, Fighter.atk_3, frame);
+                  Fighter.Press_Input(player_one, Globals.atk_3, frame);
                 when 10 =>-- j
-                  Fighter.Press_Input(player_one, Fighter.atk_4, frame);
+                  Fighter.Press_Input(player_one, Globals.atk_4, frame);
                 when 11 =>-- k
-                  Fighter.Press_Input(player_one, Fighter.atk_5, frame);
+                  Fighter.Press_Input(player_one, Globals.atk_5, frame);
                 when 12 =>-- l
-                  Fighter.Press_Input(player_one, Fighter.atk_6, frame);
+                  Fighter.Press_Input(player_one, Globals.atk_6, frame);
                 when others =>
                   null;
               end case;
             when 12 => -- key up
               case Ev.keyboard.keycode is
                 when 23 =>-- w
-                  Fighter.Release_Input(player_one, Fighter.up, frame);
+                  Fighter.Release_Input(player_one, Globals.up, frame);
                 when 1 =>-- a
-                  Fighter.Release_Input(player_one, Fighter.left, frame);
+                  Fighter.Release_Input(player_one, Globals.left, frame);
                 when 19 =>-- s
-                  Fighter.Release_Input(player_one, Fighter.down, frame);
+                  Fighter.Release_Input(player_one, Globals.down, frame);
                 when 4 =>-- d
-                  Fighter.Release_Input(player_one, Fighter.right, frame);
+                  Fighter.Release_Input(player_one, Globals.right, frame);
                 when 21 =>-- u
-                  Fighter.Release_Input(player_one, Fighter.atk_1, frame);
+                  Fighter.Release_Input(player_one, Globals.atk_1, frame);
                 when 9 =>-- i
-                  Fighter.Release_Input(player_one, Fighter.atk_2, frame);
+                  Fighter.Release_Input(player_one, Globals.atk_2, frame);
                 when 15 =>-- o
-                  Fighter.Release_Input(player_one, Fighter.atk_3, frame);
+                  Fighter.Release_Input(player_one, Globals.atk_3, frame);
                 when 10 =>-- j
-                  Fighter.Release_Input(player_one, Fighter.atk_4, frame);
+                  Fighter.Release_Input(player_one, Globals.atk_4, frame);
                 when 11 =>-- k
-                  Fighter.Release_Input(player_one, Fighter.atk_5, frame);
+                  Fighter.Release_Input(player_one, Globals.atk_5, frame);
                 when 12 =>-- l
-                  Fighter.Release_Input(player_one, Fighter.atk_6, frame);
+                  Fighter.Release_Input(player_one, Globals.atk_6, frame);
                 when others =>
                   null;
               end case;
@@ -131,12 +143,28 @@ begin
         else
           exit;
         end if;
-        
-        frame := frame + 1;
       end loop;
       
-      Fighter.Update(player_one);
-      Fighter.Update(player_two);
+      if (player_one.pos.X + player_one.sprite_offset.X) < (player_two.pos.X + player_two.sprite_offset.X) then
+        if not player_one.facing_right and player_one.on_ground and not player_one.doing_action then
+          player_one.facing_right := true;
+        end if;
+        
+        if player_two.facing_right and player_two.on_ground and not player_two.doing_action then
+          player_two.facing_right := false;
+        end if;
+      else
+        if player_one.facing_right and player_one.on_ground and not player_one.doing_action then
+          player_one.facing_right := false;
+        end if;
+        
+        if not player_two.facing_right and player_two.on_ground and not player_two.doing_action then
+          player_two.facing_right := true;
+        end if;
+      end if;
+      
+      Fighter.Update(player_one, frame);
+      Fighter.Update(player_two, frame);
       
       -- check for floor collision here
       feet_touches_floor(player_one);
@@ -146,8 +174,13 @@ begin
       --  instead of in each fighter-specific update procedure
       
       al_clear_to_color(Color_Black);
+      al_identity_transform(transform);
+      al_translate_transform(transform, Float(camera_pos.X), Float(camera_pos.Y));
+      al_use_transform(transform);
       Fighter.Draw(player_one);
       Fighter.Draw(player_two);
+      al_identity_transform(transform);
+      al_use_transform(transform);
       al_draw_text(basic_font, Text_Color, 100.0, 10.0, 0, New_String("Player 1 HP: " & player_one.hitpoints'Image));
       al_draw_text(basic_font, Text_Color, 500.0, 10.0, 0, New_String("Player 2 HP: " & player_two.hitpoints'Image));
       al_flip_display;
@@ -155,6 +188,8 @@ begin
       if should_exit then
         exit;
       end if;
+      
+      frame := frame + 1;
       
       delay until frame_start_time + frame_duration;
     end loop;
