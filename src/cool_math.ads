@@ -13,5 +13,9 @@ package Cool_Math is
   end record;
   
   function "+" (A, B : Position) return Position;
+  
+  function "+" (C : Circle; P : Position) return Circle;
+  
+  function Collides (A, B: Circle) return Boolean;
 
 end Cool_Math;

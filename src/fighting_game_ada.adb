@@ -51,6 +51,25 @@ procedure Fighting_Game_Ada is
     end if;
   end feet_touches_floor;
   
+  procedure Collide_Attacks_With (Attacker : in out Fighter.Fighter; Defender : in out Fighter.Fighter) is
+      index : Fighter.Active_Hitboxes.Cursor := Fighter.Active_Hitboxes.First(Attacker.attack_hitboxes);
+      elem : Hitbox;
+    begin
+      while Fighter.Active_Hitboxes.Has_Element(index) loop
+        elem := Fighter.Active_Hitboxes.Element(index);
+        
+        --NEEDS TO ACCOUNT FOR FACING DIRECTION!
+        
+        if Collides(elem.shape + Attacker.pos + Attacker.sprite_offset, Defender.upper_hitbox + Defender.pos + Defender.sprite_offset) then
+          null;
+        elsif Collides(elem.shape + Attacker.pos + Attacker.sprite_offset, Defender.lower_hitbox + Defender.pos + Defender.sprite_offset) then
+          null;
+        end if;
+        
+        index := Fighter.Active_Hitboxes.Next(index);
+      end loop;
+  end Collide_Attacks_With;
+  
 begin
   
   if al_install_system(Interfaces.C.int(al_get_allegro_version), null) and
@@ -72,12 +91,29 @@ begin
     Text_Color := al_map_rgb(255, 255, 255);
     basic_font := al_create_builtin_font;
     
+    debug_upper_hitbox_color := al_map_rgb(250, 230, 80);
+    debug_lower_hitbox_color := al_map_rgb(170, 130, 170);
+    
     player_one.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
     player_two.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
     player_one.pos := Position'(200.0, 400.0);
     player_two.pos := Position'(600.0, 400.0);
     Fighter.Add_Move(player_one,
-      Move.Move'(command => new Move.Move_Input_Sequence'(new Input_Tree_Node'(ID => up), new Input_Tree_Node'(ID => atk_1))),
+      Move.Move'(
+        command => new Move.Move_Input_Sequence'(new Input_Tree_Node'(ID => up), new Input_Tree_Node'(ID => atk_1)),
+        steps => new Move.Move_Step_Array'(
+          new Move.Move_Step'(frame_duration => 10, operations => new Move.Move_Sub_Step_Collection'(
+            0 => new Move.Move_Sub_Step'(O => Move.Spawn_Hitbox, hb => Hitbox'(identity => 1, shape => Circle'(pos => Position'(100.0, 0.0), radius => 50.0)))
+          )),
+          new Move.Move_Step'(frame_duration => 10, operations => new Move.Move_Sub_Step_Collection'(
+            0 => new Move.Move_Sub_Step'(O => Move.Spawn_Hitbox, hb => Hitbox'(identity => 2, shape => Circle'(pos => Position'(150.0, 0.0), radius => 50.0)))
+          )),
+          new Move.Move_Step'(frame_duration => 10, operations => new Move.Move_Sub_Step_Collection'(
+            new Move.Move_Sub_Step'(O => Move.Despawn_Hitbox, despawn_hitbox_id =>  1),
+            new Move.Move_Sub_Step'(O => Move.Despawn_Hitbox, despawn_hitbox_id =>  2)
+          ))
+        )
+      ),
       0);
     
     loop
@@ -172,6 +208,8 @@ begin
       
       -- check for other collisions here
       --  instead of in each fighter-specific update procedure
+      Collide_Attacks_With(player_one, player_two);
+      Collide_Attacks_With(player_two, player_one);
       
       al_clear_to_color(Color_Black);
       al_identity_transform(transform);

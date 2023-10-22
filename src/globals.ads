@@ -1,5 +1,7 @@
 with Ada.Calendar; use Ada.Calendar;
 with Ada.Containers.Multiway_Trees;
+with allegro5_color_h;
+with Cool_Math; use Cool_Math;
 
 package Globals is
   
@@ -21,5 +23,21 @@ package Globals is
   type Input_Tree_Node_Access is access Input_Tree_Node;
   
   package Input_Tree is new Ada.Containers.Multiway_Trees(Input_Tree_Node_Access);
+  
+  type Animation_Frame is record
+    x_start : Natural;
+    y_start : Natural;
+    frame_dration : Natural;
+  end record;
+  type Animation_Data is array(Natural range <>) of Animation_Frame;
+  type Animation_Data_Access is access Animation_Data;
+  
+  type Hitbox is record
+    identity : Integer;
+    shape : Circle;
+  end record;
+  
+  debug_upper_hitbox_color : allegro5_color_h.ALLEGRO_COLOR;
+  debug_lower_hitbox_color : allegro5_color_h.ALLEGRO_COLOR;
   
 end Globals;

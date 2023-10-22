@@ -9,17 +9,6 @@ package Fighter is
   type Moves_Collection is array(Natural range <>) of Move.Move;
   type Moves_Collection_Access is access Moves_Collection;
   
-  type Current_Active_Move is (None, ThisOne);
-  type Doing_Move (CAM : Current_Active_Move) is record
-    case CAM is
-      when None =>
-        null;
-      when ThisOne =>
-        M : Move.Move;
-    end case;
-  end record;
-  type Doing_Move_Access is access Doing_Move;
-  
   type Sprite_States is (none, has_bitmap);
   type Sprite (S : Sprite_States) is record
     case S is
@@ -38,7 +27,9 @@ package Fighter is
   
   package Inputs_List is new Ada.Containers.Doubly_Linked_Lists(Frame_And_Input);
   
-  package Active_Hitboxes is new Ada.Containers.Doubly_Linked_Lists(Circle);
+  package Active_Hitboxes is new Ada.Containers.Doubly_Linked_Lists(Hitbox);
+  
+  Hitbox_To_Despawn_Not_Found : exception;
 
   type Fighter is tagged record
     inputs : Inputs_List.List;
@@ -59,8 +50,8 @@ package Fighter is
     velocity_vertical : Scalar := 0.0;
     hitpoints : Integer := 100;
     pos : Position := Position'(0.0, 0.0);
-    upper_hitbox : Circle;--upper body hitbox
-    lower_hitbox : Circle;--lower body hitbox
+    upper_hitbox : Circle := Circle'(pos => Position'(X => 0.0, Y => -50.0), radius => 50.0);--upper body hitbox
+    lower_hitbox : Circle := Circle'(pos => Position'(X => 0.0, Y => 50.0), radius => 50.0);--lower body hitbox
     chunkbox : Circle;--body chunkbox
     bottom_of_feet : Position := Position'(0.0, 100.0);-- used for detecting the floor
     sprite_data : Sprite_Access := new Sprite(S => none);
@@ -68,8 +59,12 @@ package Fighter is
     frame_height : Integer := 200;
     sprite_offset : Position := Position'(-100.0, -100.0);
     attack_hitboxes : Active_Hitboxes.List;
-    active_move : Doing_Move_Access := new Doing_Move(CAM => None);
-    started_move_on : Natural;
+    active_move_steps : Move.Move_Step_Array_Access := new Move.Move_Step_Array(1 .. 20);
+    move_step_index : Positive := 1;
+    move_frame_progression : Natural := 0;
+    active_animation : Animation_Data_Access := new Animation_Data(0 .. 32);
+    animation_progression : Natural := 0;
+    show_hitboxes : Boolean := true;
   end record;
   
   procedure Press_Input(F : in out Fighter; given_input : input_ids; frame : Natural);
@@ -82,7 +77,7 @@ package Fighter is
   
   procedure Update (F : in out Fighter; Current_Frame : Natural);
   
-  procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move; Starting_Frame : Natural);
+  procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move);
   
 private
 

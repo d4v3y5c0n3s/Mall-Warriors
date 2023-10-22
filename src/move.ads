@@ -1,18 +1,36 @@
 with Globals; use Globals;
+with Cool_Math; use Cool_Math;
 
 package Move is
 
-  type Move_Step is record
-    null;--could be changed from a record to an access to a procedure, would be much more general & easier to set up
-    --also need to store duration of step in frames
+  type Sub_Step is (Play_Animation, Apply_Velocity, Spawn_Hitbox, Despawn_Hitbox);
+  type Move_Sub_Step (O : Sub_Step) is record
+    case O is
+      when Play_Animation =>
+        anim : Animation_Data_Access := new Animation_Data(0 .. 32);
+      when Apply_Velocity =>
+        vel : Position;
+      when Spawn_Hitbox =>
+        hb : Hitbox;
+      when Despawn_Hitbox =>
+        despawn_hitbox_id : Integer;
+    end case;
   end record;
-  -- a record type that says what happens from frame X to frame X during the course of performing this move
-  type Move_Step_Array is array(Positive range <>) of Move_Step;
+  type Move_Sub_Step_Access is access Move_Sub_Step;
+  type Move_Sub_Step_Collection is array(Natural range <>) of Move_Sub_Step_Access;
+  type Move_Step is record
+    frame_duration : Natural;
+    operations : access Move_Sub_Step_Collection;
+  end record;
+  type Move_Step_Access is access Move_Step;
+  type Move_Step_Array is array(Positive range <>) of Move_Step_Access;
+  type Move_Step_Array_Access is access Move_Step_Array;
+  
   type Move_Input_Sequence is array(Positive range <>) of Input_Tree_Node_Access;
   
   type Move is record
-    command : access Move_Input_Sequence;--input_sequence
-    --steps : ;--[list/array of Move_Step]
+    command : access Move_Input_Sequence;
+    steps : Move_Step_Array_Access;
   end record;
 
 end Move;

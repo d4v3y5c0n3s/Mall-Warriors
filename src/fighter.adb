@@ -1,5 +1,5 @@
-with allegro5_bitmap_io_h;
 with allegro5_bitmap_draw_h;
+with allegro_primitives_h;
 with Interfaces.C;
 with Ada.Text_IO;
 
@@ -96,6 +96,20 @@ package body Fighter is
           sprite_facing
         );
     end case;
+    
+    if F.show_hitboxes then
+      Draw_Debug_Hitboxes:
+        declare
+          upper_hb_pos : Position := F.upper_hitbox.pos + F.pos;
+          lower_hb_pos : Position := F.lower_hitbox.pos + F.pos;
+        begin
+          allegro_primitives_h.al_draw_circle(Float(upper_hb_pos.X), Float(upper_hb_pos.Y), Float(F.upper_hitbox.radius), debug_upper_hitbox_color, 4.0);
+          allegro_primitives_h.al_draw_circle(Float(lower_hb_pos.X), Float(lower_hb_pos.Y), Float(F.lower_hitbox.radius), debug_lower_hitbox_color, 4.0);
+          
+          --while  loop
+          --end loop;
+        end Draw_Debug_Hitboxes;
+    end if;
   end Draw;
   
   procedure Update (F : in out Fighter; Current_Frame : Natural) is
@@ -161,7 +175,7 @@ package body Fighter is
                  --Remove found input sequence & execute the associated move
                 Inputs_List.Delete(F.inputs, inputs_cursor, Inputs_List.Length(longest_match));
                 
-                Execute_Move(F, F.moves(longest_input_chain_key), Current_Frame);
+                Execute_Move(F, F.moves(longest_input_chain_key));
               else
                  --if loop ends with no pattern, remove top elem of F.inputs
                 Inputs_List.Delete(F.inputs, inputs_cursor);
@@ -175,8 +189,64 @@ package body Fighter is
     
     -- if doing a move, continue processing it here
     if F.doing_action then
-      Ada.Text_IO.Put_Line("Move executed");
+      if F.move_frame_progression = 0 then
+        -- iterate through sub-steps & apply them
+        Ada.Text_IO.Put_Line("start move operations");
+        for I in F.active_move_steps(F.move_step_index).operations'Range loop
+          Operation_Step:
+            declare
+              operation : Move.Move_Sub_Step_Access := F.active_move_steps(F.move_step_index).operations(I);
+            begin
+              case operation.O is
+                when Move.Play_Animation =>
+                  null;
+                when Move.Apply_Velocity =>
+                  null;
+                when Move.Spawn_Hitbox =>
+                  Active_Hitboxes.Append(F.attack_hitboxes, operation.hb);
+                when Move.Despawn_Hitbox =>
+                  Find_and_Despawn:
+                    declare
+                      index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
+                      elem : Hitbox;
+                      found : Boolean := false;
+                    begin
+                      while Active_Hitboxes.Has_Element(index) loop
+                        elem := Active_Hitboxes.Element(index);
+                        
+                        if elem.identity = operation.despawn_hitbox_id then
+                          found := true;
+                          Active_Hitboxes.Delete(F.attack_hitboxes, index);
+                          exit;
+                        end if;
+                        
+                        index := Active_Hitboxes.Next(index);
+                      end loop;
+                      
+                      if not found then
+                        raise Hitbox_To_Despawn_Not_Found;
+                      end if;
+                    end Find_and_Despawn;
+              end case;
+            end Operation_Step;
+        end loop;
+      end if;
+      
+      F.move_frame_progression := F.move_frame_progression + 1;
+      
+      if F.move_frame_progression >= F.active_move_steps(F.move_step_index).frame_duration then
+        F.move_step_index := F.move_step_index + 1;
+        F.move_frame_progression := 0;
+      end if;
+      
+      if F.move_step_index > F.active_move_steps'Last then
+        F.doing_action := false;
+        Active_Hitboxes.Clear(F.attack_hitboxes);
+      end if;
     end if;
+    
+    -- continue processing the current animation here
+    --
     
     -- update position based on velocity
     if F.moving_left and not F.moving_right then
@@ -197,12 +267,13 @@ package body Fighter is
     end if;
   end Update;
   
-  procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move; Starting_Frame : Natural) is
+  procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move) is
   begin
     if not F.hitstunned and not F.doing_action then
       F.doing_action := true;
-      F.active_move := new Doing_Move'(CAM => ThisOne, M => ThisMove);
-      F.started_move_on := Starting_Frame;
+      F.move_frame_progression := 0;
+      F.move_step_index := 1;
+      F.active_move_steps := ThisMove.steps;
     end if;
   end Execute_Move;
 
