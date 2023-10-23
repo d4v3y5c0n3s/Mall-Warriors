@@ -20,6 +20,7 @@ with Globals; use Globals;
 with Fighter;
 with Move;
 with Cool_Math; use Cool_Math;
+with Ada.Text_IO;
 
 procedure Fighting_Game_Ada is
   
@@ -54,16 +55,20 @@ procedure Fighting_Game_Ada is
   procedure Collide_Attacks_With (Attacker : in out Fighter.Fighter; Defender : in out Fighter.Fighter) is
       index : Fighter.Active_Hitboxes.Cursor := Fighter.Active_Hitboxes.First(Attacker.attack_hitboxes);
       elem : Hitbox;
+      shape : Circle;
     begin
       while Fighter.Active_Hitboxes.Has_Element(index) loop
         elem := Fighter.Active_Hitboxes.Element(index);
+        shape := elem.shape;
         
-        --NEEDS TO ACCOUNT FOR FACING DIRECTION!
+        if not Attacker.facing_right then
+          shape.pos.X := -shape.pos.X;
+        end if;
         
-        if Collides(elem.shape + Attacker.pos + Attacker.sprite_offset, Defender.upper_hitbox + Defender.pos + Defender.sprite_offset) then
-          null;
-        elsif Collides(elem.shape + Attacker.pos + Attacker.sprite_offset, Defender.lower_hitbox + Defender.pos + Defender.sprite_offset) then
-          null;
+        if Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.upper_hitbox + Defender.pos + Defender.sprite_offset) then
+          Ada.Text_IO.Put_Line("Hit high");
+        elsif Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.lower_hitbox + Defender.pos + Defender.sprite_offset) then
+          Ada.Text_IO.Put_Line("Hit low");
         end if;
         
         index := Fighter.Active_Hitboxes.Next(index);
@@ -93,6 +98,7 @@ begin
     
     debug_upper_hitbox_color := al_map_rgb(250, 230, 80);
     debug_lower_hitbox_color := al_map_rgb(170, 130, 170);
+    debug_attack_hitbox_color := al_map_rgb(220, 50, 50);
     
     player_one.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
     player_two.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
@@ -207,9 +213,11 @@ begin
       feet_touches_floor(player_two);
       
       -- check for other collisions here
-      --  instead of in each fighter-specific update procedure
       Collide_Attacks_With(player_one, player_two);
       Collide_Attacks_With(player_two, player_one);
+      
+      -- move camera here
+      camera_pos.X := (Scalar((player_one.pos.X - player_two.pos.X) / 2.0) + 200.0) * (-1.0);
       
       al_clear_to_color(Color_Black);
       al_identity_transform(transform);

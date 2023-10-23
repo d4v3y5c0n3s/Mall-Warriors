@@ -102,12 +102,22 @@ package body Fighter is
         declare
           upper_hb_pos : Position := F.upper_hitbox.pos + F.pos;
           lower_hb_pos : Position := F.lower_hitbox.pos + F.pos;
+          index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
+          elem : Hitbox;
+          attack_hitbox_pos : Position;
         begin
           allegro_primitives_h.al_draw_circle(Float(upper_hb_pos.X), Float(upper_hb_pos.Y), Float(F.upper_hitbox.radius), debug_upper_hitbox_color, 4.0);
           allegro_primitives_h.al_draw_circle(Float(lower_hb_pos.X), Float(lower_hb_pos.Y), Float(F.lower_hitbox.radius), debug_lower_hitbox_color, 4.0);
           
-          --while  loop
-          --end loop;
+          while Active_Hitboxes.Has_Element(index) loop
+            elem := Active_Hitboxes.Element(index);
+            
+            attack_hitbox_pos := (if F.facing_right then F.pos + elem.shape.pos else F.pos - elem.shape.pos);
+            
+            allegro_primitives_h.al_draw_circle(Float(attack_hitbox_pos.X), Float(attack_hitbox_pos.Y), Float(elem.shape.radius), debug_attack_hitbox_color, 4.0);
+            
+            index := Active_Hitboxes.Next(index);
+          end loop;
         end Draw_Debug_Hitboxes;
     end if;
   end Draw;

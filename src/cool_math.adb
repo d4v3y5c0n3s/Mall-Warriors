@@ -5,6 +5,11 @@ package body Cool_Math is
     return Position'(A.X + B.X, A.Y + B.Y);
   end "+";
   
+  function "-" (A, B : Position) return Position is
+  begin
+    return Position'(A.X - B.X, A.Y - B.Y);
+  end "-";
+  
   function "+" (C : Circle; P : Position) return Circle is
   begin
     return Circle'(pos => C.pos + P, radius => C.radius);

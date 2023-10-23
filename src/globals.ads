@@ -39,5 +39,6 @@ package Globals is
   
   debug_upper_hitbox_color : allegro5_color_h.ALLEGRO_COLOR;
   debug_lower_hitbox_color : allegro5_color_h.ALLEGRO_COLOR;
+  debug_attack_hitbox_color : allegro5_color_h.ALLEGRO_COLOR;
   
 end Globals;
