@@ -20,7 +20,6 @@ with Globals; use Globals;
 with Fighter;
 with Move;
 with Cool_Math; use Cool_Math;
-with Ada.Text_IO;
 
 procedure Fighting_Game_Ada is
   
@@ -56,6 +55,22 @@ procedure Fighting_Game_Ada is
       index : Fighter.Active_Hitboxes.Cursor := Fighter.Active_Hitboxes.First(Attacker.attack_hitboxes);
       elem : Hitbox;
       shape : Circle;
+      
+      procedure Mark_Matching_As_Hit (hit_id : Integer) is
+        cursor : Fighter.Active_Hitboxes.Cursor := Fighter.Active_Hitboxes.First(Attacker.attack_hitboxes);
+        temp_hitbox : Hitbox;
+      begin
+        while Fighter.Active_Hitboxes.Has_Element(cursor) loop
+          temp_hitbox := Fighter.Active_Hitboxes.Element(cursor);
+          
+          if temp_hitbox.identity = hit_id then
+            temp_hitbox.hit := true;
+            Fighter.Active_Hitboxes.Replace_Element(Attacker.attack_hitboxes, cursor, temp_hitbox);
+          end if;
+          
+          cursor := Fighter.Active_Hitboxes.Next(cursor);
+        end loop;
+      end Mark_Matching_As_Hit;
     begin
       while Fighter.Active_Hitboxes.Has_Element(index) loop
         elem := Fighter.Active_Hitboxes.Element(index);
@@ -65,10 +80,18 @@ procedure Fighting_Game_Ada is
           shape.pos.X := -shape.pos.X;
         end if;
         
-        if Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.upper_hitbox + Defender.pos + Defender.sprite_offset) then
-          Ada.Text_IO.Put_Line("Hit high");
-        elsif Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.lower_hitbox + Defender.pos + Defender.sprite_offset) then
-          Ada.Text_IO.Put_Line("Hit low");
+        if not elem.hit then
+          if Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.upper_hitbox + Defender.pos + Defender.sprite_offset) then
+            if not Defender.blocking or Defender.crouching then
+              Defender.hitpoints := Defender.hitpoints - elem.damage;
+            end if;
+            Mark_Matching_As_Hit(elem.identity);
+          elsif Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.lower_hitbox + Defender.pos + Defender.sprite_offset) then
+            if not Defender.blocking or not Defender.crouching then
+              Defender.hitpoints := Defender.hitpoints - elem.damage;
+            end if;
+            Mark_Matching_As_Hit(elem.identity);
+          end if;
         end if;
         
         index := Fighter.Active_Hitboxes.Next(index);
@@ -109,14 +132,29 @@ begin
         command => new Move.Move_Input_Sequence'(new Input_Tree_Node'(ID => up), new Input_Tree_Node'(ID => atk_1)),
         steps => new Move.Move_Step_Array'(
           new Move.Move_Step'(frame_duration => 10, operations => new Move.Move_Sub_Step_Collection'(
-            0 => new Move.Move_Sub_Step'(O => Move.Spawn_Hitbox, hb => Hitbox'(identity => 1, shape => Circle'(pos => Position'(100.0, 0.0), radius => 50.0)))
+            0 => new Move.Move_Sub_Step'(O => Move.Spawn_Hitbox, hb => Hitbox'(
+              identity => 1,
+              shape => Circle'(pos => Position'(100.0, 0.0), radius => 50.0),
+              hit => false,
+              damage => 20,
+              knockback_vertical => 40.0,
+              knockback_horizontal => 50.0,
+              hitstun_duration => 10
+            ))
           )),
           new Move.Move_Step'(frame_duration => 10, operations => new Move.Move_Sub_Step_Collection'(
-            0 => new Move.Move_Sub_Step'(O => Move.Spawn_Hitbox, hb => Hitbox'(identity => 2, shape => Circle'(pos => Position'(150.0, 0.0), radius => 50.0)))
+            0 => new Move.Move_Sub_Step'(O => Move.Spawn_Hitbox, hb => Hitbox'(
+              identity => 1,
+              shape => Circle'(pos => Position'(150.0, 0.0), radius => 50.0),
+              hit => false,
+              damage => 20,
+              knockback_vertical => 40.0,
+              knockback_horizontal => 50.0,
+              hitstun_duration => 10
+            ))
           )),
           new Move.Move_Step'(frame_duration => 10, operations => new Move.Move_Sub_Step_Collection'(
-            new Move.Move_Sub_Step'(O => Move.Despawn_Hitbox, despawn_hitbox_id =>  1),
-            new Move.Move_Sub_Step'(O => Move.Despawn_Hitbox, despawn_hitbox_id =>  2)
+            0 => new Move.Move_Sub_Step'(O => Move.Despawn_Hitbox, despawn_hitbox_id =>  1)
           ))
         )
       ),
@@ -188,19 +226,19 @@ begin
       end loop;
       
       if (player_one.pos.X + player_one.sprite_offset.X) < (player_two.pos.X + player_two.sprite_offset.X) then
-        if not player_one.facing_right and player_one.on_ground and not player_one.doing_action then
+        if not player_one.facing_right and player_one.on_ground and not player_one.doing_action and Fighter.Inputs_List.Is_Empty(player_one.inputs) then
           player_one.facing_right := true;
         end if;
         
-        if player_two.facing_right and player_two.on_ground and not player_two.doing_action then
+        if player_two.facing_right and player_two.on_ground and not player_two.doing_action and Fighter.Inputs_List.Is_Empty(player_two.inputs) then
           player_two.facing_right := false;
         end if;
       else
-        if player_one.facing_right and player_one.on_ground and not player_one.doing_action then
+        if player_one.facing_right and player_one.on_ground and not player_one.doing_action and Fighter.Inputs_List.Is_Empty(player_one.inputs) then
           player_one.facing_right := false;
         end if;
         
-        if not player_two.facing_right and player_two.on_ground and not player_two.doing_action then
+        if not player_two.facing_right and player_two.on_ground and not player_two.doing_action and Fighter.Inputs_List.Is_Empty(player_two.inputs) then
           player_two.facing_right := true;
         end if;
       end if;

@@ -35,6 +35,10 @@ package Globals is
   type Hitbox is record
     identity : Integer;
     shape : Circle;
+    hit : Boolean := false;
+    damage : Integer := 0;
+    knockback_vertical, knockback_horizontal : Scalar := 0.0;
+    hitstun_duration : Natural := 0;
   end record;
   
   debug_upper_hitbox_color : allegro5_color_h.ALLEGRO_COLOR;

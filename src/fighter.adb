@@ -1,13 +1,20 @@
 with allegro5_bitmap_draw_h;
 with allegro_primitives_h;
 with Interfaces.C;
-with Ada.Text_IO;
 
 package body Fighter is
 
   procedure Queue_Input (F : in out Fighter; input_on_frame : Frame_And_Input) is
+    on_frame : Frame_And_Input := input_on_frame;
   begin
-    Inputs_List.Append(F.inputs, input_on_frame);
+    if not F.facing_right then
+      if on_frame.input = left then
+        on_frame.input := right;
+      elsif on_frame.input = right then
+        on_frame.input := left;
+      end if;
+    end if;
+    Inputs_List.Append(F.inputs, on_frame);
   end Queue_Input;
   
   procedure Add_Move (F : in out Fighter; M : Move.Move; Index : Natural) is
@@ -201,7 +208,6 @@ package body Fighter is
     if F.doing_action then
       if F.move_frame_progression = 0 then
         -- iterate through sub-steps & apply them
-        Ada.Text_IO.Put_Line("start move operations");
         for I in F.active_move_steps(F.move_step_index).operations'Range loop
           Operation_Step:
             declare
@@ -213,7 +219,22 @@ package body Fighter is
                 when Move.Apply_Velocity =>
                   null;
                 when Move.Spawn_Hitbox =>
-                  Active_Hitboxes.Append(F.attack_hitboxes, operation.hb);
+                  Mark_As_Hit_If_Existing_ID_Hit:
+                    declare
+                      index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
+                      elem : Hitbox;
+                    begin
+                      while Active_Hitboxes.Has_Element(index) loop
+                        elem := Active_Hitboxes.Element(index);
+                        
+                        if elem.identity = operation.hb.identity and elem.hit then
+                          operation.hb.hit := true;
+                        end if;
+                        
+                        index := Active_Hitboxes.Next(index);
+                      end loop;
+                      Active_Hitboxes.Append(F.attack_hitboxes, operation.hb);
+                    end Mark_As_Hit_If_Existing_ID_Hit;
                 when Move.Despawn_Hitbox =>
                   Find_and_Despawn:
                     declare
@@ -227,7 +248,6 @@ package body Fighter is
                         if elem.identity = operation.despawn_hitbox_id then
                           found := true;
                           Active_Hitboxes.Delete(F.attack_hitboxes, index);
-                          exit;
                         end if;
                         
                         index := Active_Hitboxes.Next(index);
