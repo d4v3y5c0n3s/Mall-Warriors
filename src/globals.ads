@@ -25,9 +25,9 @@ package Globals is
   package Input_Tree is new Ada.Containers.Multiway_Trees(Input_Tree_Node_Access);
   
   type Animation_Frame is record
-    x_start : Natural;
-    y_start : Natural;
-    frame_dration : Natural;
+    x_start : Float := 0.0;
+    y_start : Float := 0.0;
+    frame_dration : Natural := 0;
   end record;
   type Animation_Data is array(Natural range <>) of Animation_Frame;
   type Animation_Data_Access is access Animation_Data;

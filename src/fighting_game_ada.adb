@@ -16,6 +16,8 @@ with allegro5_bitmap_io_h; use allegro5_bitmap_io_h;
 with allegro5_transformations_h; use allegro5_transformations_h;
 with allegro_audio_h; use allegro_audio_h;
 with allegro_acodec_h; use allegro_acodec_h;
+with allegro5_bitmap_h; use allegro5_bitmap_h;
+with allegro5_bitmap_draw_h; use allegro5_bitmap_draw_h;
 with Globals; use Globals;
 with Fighter;
 with Move;
@@ -34,6 +36,7 @@ procedure Fighting_Game_Ada is
   transform : access ALLEGRO_TRANSFORM := new ALLEGRO_TRANSFORM;
   frame : Natural := 0;
   camera_pos : Position;
+  stage_bitmap : access ALLEGRO_BITMAP := new ALLEGRO_BITMAP;
   
   Allegro_Initialization_Failure : exception;
   
@@ -159,6 +162,8 @@ begin
         )
       ),
       0);
+      
+      stage_bitmap := al_load_bitmap(New_String("assets/colorful_stage.png"));
     
     loop
       frame_start_time := Clock;
@@ -261,6 +266,7 @@ begin
       al_identity_transform(transform);
       al_translate_transform(transform, Float(camera_pos.X), Float(camera_pos.Y));
       al_use_transform(transform);
+      al_draw_bitmap(stage_bitmap, -800.0, 0.0, 0);
       Fighter.Draw(player_one);
       Fighter.Draw(player_two);
       al_identity_transform(transform);

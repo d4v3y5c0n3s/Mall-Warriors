@@ -97,7 +97,7 @@ package body Fighter is
         end if;
         allegro5_bitmap_draw_h.al_draw_bitmap_region(
           F.sprite_data.bitmap,
-          0.0, 0.0,
+          F.active_animation(F.active_anim_index).x_start, F.active_animation(F.active_anim_index).y_start,
           Float(F.frame_width), Float(F.frame_height),
           Float(pos_with_offset.X), Float(pos_with_offset.Y),
           sprite_facing
@@ -276,7 +276,17 @@ package body Fighter is
     end if;
     
     -- continue processing the current animation here
-    --
+    if F.animation_progression >= F.active_animation(F.active_anim_index).frame_dration then
+      F.animation_progression := 0;
+      
+      if F.active_anim_index < F.active_animation'Last then
+        F.active_anim_index := F.active_anim_index + 1;
+      else
+        F.active_anim_index := F.active_animation'First;
+      end if;
+    else
+      F.animation_progression := F.animation_progression + 1;
+    end if;
     
     -- update position based on velocity
     if F.moving_left and not F.moving_right then

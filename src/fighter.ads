@@ -62,8 +62,11 @@ package Fighter is
     active_move_steps : Move.Move_Step_Array_Access := new Move.Move_Step_Array(1 .. 20);
     move_step_index : Positive := 1;
     move_frame_progression : Natural := 0;
-    active_animation : Animation_Data_Access := new Animation_Data(0 .. 32);
+    active_animation : Animation_Data_Access := new Animation_Data(0 .. 0);
+    active_anim_index : Natural := 0;
     animation_progression : Natural := 0;
+    --anim_x : Float := 0.0;
+    --anim_y : Float := 0.0;
     show_hitboxes : Boolean := true;
   end record;
   
