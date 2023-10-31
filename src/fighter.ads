@@ -38,21 +38,28 @@ package Fighter is
     blocking : Boolean := false;
     crouching : Boolean := false;
     on_ground : Boolean := true;
-    hitstunned : Boolean := false;
+    hitstun_duration : Natural := 0;
     doing_action : Boolean := false;
     facing_right : Boolean := true;
     moving_right : Boolean := false;
     moving_left : Boolean := false;
+    strafing_left : Boolean := false;
+    strafing_right : Boolean := false;
     gravity : Scalar := 1.0;
     walk_speed : Scalar := 7.0;
+    air_strafe_speed : Scalar := 5.0;
     jump_speed : Scalar := -20.0;
     velocity_horizontal : Scalar := 0.0;
     velocity_vertical : Scalar := 0.0;
+    knockback_velocity_vertical : Scalar := 0.0;
+    knockback_velocity_horizontal : Scalar := 0.0;
+    dash_velocity_vertical : Scalar := 0.0;
+    dash_velocity_horizontal : Scalar := 0.0;
     hitpoints : Integer := 100;
     pos : Position := Position'(0.0, 0.0);
     upper_hitbox : Circle := Circle'(pos => Position'(X => 0.0, Y => -50.0), radius => 50.0);--upper body hitbox
     lower_hitbox : Circle := Circle'(pos => Position'(X => 0.0, Y => 50.0), radius => 50.0);--lower body hitbox
-    chunkbox : Circle;--body chunkbox
+    chunkbox : Circle := Circle'(pos => Position'(X => 0.0, Y => 0.0), radius => 60.0);--body chunkbox
     bottom_of_feet : Position := Position'(0.0, 100.0);-- used for detecting the floor
     sprite_data : Sprite_Access := new Sprite(S => none);
     frame_width : Integer := 200;

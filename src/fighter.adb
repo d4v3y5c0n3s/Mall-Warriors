@@ -61,6 +61,8 @@ package body Fighter is
         if F.on_ground then
           F.on_ground := false;
           F.velocity_vertical := F.jump_speed;
+          F.strafing_left := F.moving_left;
+          F.strafing_right := F.moving_right;
         end if;
       when left =>
         F.moving_left := true;
@@ -109,12 +111,14 @@ package body Fighter is
         declare
           upper_hb_pos : Position := F.upper_hitbox.pos + F.pos;
           lower_hb_pos : Position := F.lower_hitbox.pos + F.pos;
+          cb_hb_pos : Position := F.chunkbox.pos + F.pos;
           index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
           elem : Hitbox;
           attack_hitbox_pos : Position;
         begin
           allegro_primitives_h.al_draw_circle(Float(upper_hb_pos.X), Float(upper_hb_pos.Y), Float(F.upper_hitbox.radius), debug_upper_hitbox_color, 4.0);
           allegro_primitives_h.al_draw_circle(Float(lower_hb_pos.X), Float(lower_hb_pos.Y), Float(F.lower_hitbox.radius), debug_lower_hitbox_color, 4.0);
+          allegro_primitives_h.al_draw_circle(Float(cb_hb_pos.X), Float(cb_hb_pos.Y), Float(F.chunkbox.radius), debug_chunkbox_color, 4.0);
           
           while Active_Hitboxes.Has_Element(index) loop
             elem := Active_Hitboxes.Element(index);
@@ -289,13 +293,33 @@ package body Fighter is
     end if;
     
     -- update position based on velocity
-    if F.moving_left and not F.moving_right then
-      F.velocity_horizontal := -F.walk_speed;
-    elsif F.moving_right and not F.moving_left then
-      F.velocity_horizontal := F.walk_speed;
-    else
-      F.velocity_horizontal := 0.0;
+    if not (F.hitstun_duration > 0) then
+      if F.on_ground then
+        if F.moving_left and not F.moving_right then
+          F.velocity_horizontal := -F.walk_speed;
+        elsif F.moving_right and not F.moving_left then
+          F.velocity_horizontal := F.walk_speed;
+        else
+          F.velocity_horizontal := 0.0;
+        end if;
+      else
+        if F.strafing_left and not F.strafing_right then
+          F.velocity_horizontal := -F.air_strafe_speed;
+        elsif F.strafing_right and not F.strafing_left then
+          F.velocity_horizontal := F.air_strafe_speed;
+        else
+          F.velocity_horizontal := 0.0;
+        end if;
+      end if;
     end if;
+    
+    -- How do I handle knockback?
+    -- How do I hanlde special moves that make the fighter move like dashes?
+    -- having vertical & horizontal "knockback" & "dash" velocity variables would allow for the maximum degree of control here
+    --knockback_velocity_vertical
+    --knockback_velocity_horizontal
+    --dash_velocity_vertical
+    --dash_velocity_horizontal
     
     F.pos := Position'(F.pos.X + F.velocity_horizontal, F.pos.Y + F.velocity_vertical);
     
@@ -305,11 +329,15 @@ package body Fighter is
     else
       F.velocity_vertical := 0.0;
     end if;
+    
+    if F.hitstun_duration > 0 then
+      F.hitstun_duration := F.hitstun_duration - 1;
+    end if;
   end Update;
   
   procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move) is
   begin
-    if not F.hitstunned and not F.doing_action then
+    if not (F.hitstun_duration > 0) and not F.doing_action then
       F.doing_action := true;
       F.move_frame_progression := 0;
       F.move_step_index := 1;

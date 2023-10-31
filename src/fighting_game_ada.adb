@@ -2,6 +2,7 @@ with Ada.Calendar; use Ada.Calendar;
 with Interfaces.C.Strings; use Interfaces.C.Strings;
 with Interfaces.C; use Interfaces.C;
 with Interfaces; use Interfaces;
+with Interfaces.C.Extensions; use Interfaces.C.Extensions;
 with allegro5_events_h; use allegro5_events_h;
 with allegro5_system_h; use allegro5_system_h;
 with allegro5_base_h; use allegro5_base_h;
@@ -25,11 +26,17 @@ with Cool_Math; use Cool_Math;
 
 procedure Fighting_Game_Ada is
   
+  screen_width : constant Scalar := 800.0;
+  half_screen_width : constant Scalar := screen_width / 2.0;
+  screen_height : constant Scalar := 600.0;
+  floor_height : constant Scalar := Scalar(screen_height / 6.0) * 5.0;
+  stage_width : constant Scalar := screen_width * 3.0;
+  half_stage_width : constant Scalar := stage_width / 2.0;
+  
   frame_start_time : Time := Clock;
   should_exit : Boolean := false;
   player_one : Fighter.Fighter;
   player_two : Fighter.Fighter;
-  floor_height : Scalar := 500.0;
   Color_Black : ALLEGRO_COLOR;
   Text_Color : ALLEGRO_COLOR;
   basic_font : access ALLEGRO_FONT;
@@ -46,13 +53,33 @@ procedure Fighting_Game_Ada is
   KBEventSrc : access ALLEGRO_EVENT_SOURCE;
   Ev : access ALLEGRO_EVENT := new ALLEGRO_EVENT;
   
+  type Wall_Collision is (None, Left_Collision, Right_Collision);
+  
   procedure feet_touches_floor (F : in out Fighter.Fighter) is
   begin
     if F.pos.Y + F.bottom_of_feet.Y >= floor_height then
       F.on_ground := true;
       F.pos.Y := floor_height - F.bottom_of_feet.Y;
+      F.strafing_left := false;
+      F.strafing_right := false;
     end if;
   end feet_touches_floor;
+  
+  function body_touches_wall (F : Fighter.Fighter; Camera_X : Scalar) return Wall_Collision is
+    translated_chunkbox : Circle := F.chunkbox + F.pos;
+    chunkbox_left : Scalar := translated_chunkbox.pos.X - translated_chunkbox.radius;
+    chunkbox_right : Scalar := translated_chunkbox.pos.X + translated_chunkbox.radius;
+    left_side : Scalar := -Camera_X;
+    right_side : Scalar := -(Camera_X) + screen_width;
+  begin
+    if chunkbox_left < left_side then
+      return Left_Collision;
+    elsif chunkbox_right > right_side then
+      return Right_Collision;
+    else
+      return None;
+    end if;
+  end body_touches_wall;
   
   procedure Collide_Attacks_With (Attacker : in out Fighter.Fighter; Defender : in out Fighter.Fighter) is
       index : Fighter.Active_Hitboxes.Cursor := Fighter.Active_Hitboxes.First(Attacker.attack_hitboxes);
@@ -112,7 +139,7 @@ begin
   al_init_acodec_addon and
   al_reserve_samples(32) then
     Q := al_create_event_queue;
-    Display := al_create_display(800, 600);
+    Display := al_create_display(int(screen_width), int(screen_height));
     DisplayEventSrc := al_get_display_event_source(Display);
     al_register_event_source(Q, DisplayEventSrc);
     KBEventSrc := al_get_keyboard_event_source;
@@ -125,6 +152,7 @@ begin
     debug_upper_hitbox_color := al_map_rgb(250, 230, 80);
     debug_lower_hitbox_color := al_map_rgb(170, 130, 170);
     debug_attack_hitbox_color := al_map_rgb(220, 50, 50);
+    debug_chunkbox_color := al_map_rgb(87, 87, 82);
     
     player_one.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
     player_two.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
@@ -256,17 +284,98 @@ begin
       feet_touches_floor(player_two);
       
       -- check for other collisions here
+      FighterGeneralCollision:
+        declare
+          p1_touching_wall : Wall_Collision := body_touches_wall(player_one, camera_pos.X);
+          p2_touching_wall : Wall_Collision := body_touches_wall(player_two, camera_pos.X);
+          players_colliding : Boolean := Collides(player_one.chunkbox + player_one.pos, player_two.chunkbox + player_two.pos);
+          p1_hitstunned : Boolean := player_one.hitstun_duration > 0;
+          p2_hitstunned : Boolean := player_two.hitstun_duration > 0;
+          
+          function uncollide_wall (Player : Fighter.Fighter; Touching : Wall_Collision) return Scalar is
+            value : Scalar := Player.pos.X + Player.chunkbox.pos.X;
+            absolute_value : Scalar := (if value /= 0.0 then Scalar(value * value) / value else 0.0);
+            difference : Scalar := 0.0;
+            
+            procedure calculate_difference is
+              WallX : Scalar := 0.0;
+              rad : Scalar := 0.0;
+              dir : Scalar := 0.0;
+              absolute_wall_x : Scalar := 0.0;
+            begin
+              if Touching = Left_Collision then
+                WallX := -camera_pos.X;
+                rad := -Player.chunkbox.radius;
+                dir := -1.0;
+              elsif Touching = Right_Collision then
+                WallX := -(camera_pos.X) + screen_width;
+                rad := Player.chunkbox.radius;
+                dir := 1.0;
+              end if;
+              absolute_wall_x := (if WallX /= 0.0 then Scalar(WallX * WallX) / WallX else 0.0);
+              difference := dir * (rad + absolute_value - absolute_wall_x);
+            end calculate_difference;
+          begin
+            if Touching = Left_Collision then
+              calculate_difference;
+              return Player.pos.X + difference;
+            elsif Touching = Right_Collision then
+              calculate_difference;
+              return Player.pos.X - difference;
+            else
+              return Player.pos.X;
+            end if;
+          end uncollide_wall;
+        begin
+          -- Need a series of rules to determine which determine which fighter gets moved and in which direction
+          -- Incorporates details such as:
+          --  Which fighters are touching a wall?
+          --  Are the fighters colliding?
+          --  Which fighters are hitstunned?
+          if players_colliding then
+            if p1_touching_wall = p2_touching_wall and p1_touching_wall /= None then
+              null;
+              -- First, uncollide both from the wall
+              -- Then, if they still collide, uncollide the player who was furthest from the wall in the opposite direction from the wall
+            elsif p1_touching_wall /= None and p2_touching_wall = None then
+              null;
+            elsif p2_touching_wall /= None and p1_touching_wall = None then
+              null;
+            elsif p1_hitstunned and not p2_hitstunned then
+              null;
+            elsif not p1_hitstunned and p2_hitstunned then
+              null;
+            else
+              null;
+            end if;
+          else
+            player_one.pos.X := uncollide_wall(player_one, p1_touching_wall);
+            player_two.pos.X := uncollide_wall(player_two, p2_touching_wall);
+          end if;
+        end FighterGeneralCollision;
+      
       Collide_Attacks_With(player_one, player_two);
       Collide_Attacks_With(player_two, player_one);
       
       -- move camera here
-      camera_pos.X := (Scalar((player_one.pos.X - player_two.pos.X) / 2.0) + 200.0) * (-1.0);
+      MoveCamera:
+        declare
+          midpoint : constant Scalar := (Scalar((player_one.pos.X - player_two.pos.X) / 2.0) + 200.0) * (-1.0);
+        begin
+          if midpoint < (-(half_stage_width) + half_screen_width) then
+            camera_pos.X := -(half_stage_width) + half_screen_width;
+          elsif midpoint > (half_stage_width - half_screen_width) then
+            camera_pos.X := half_stage_width - half_screen_width;
+          else
+            camera_pos.X := midpoint;
+          end if;
+        end MoveCamera;
       
       al_clear_to_color(Color_Black);
       al_identity_transform(transform);
       al_translate_transform(transform, Float(camera_pos.X), Float(camera_pos.Y));
       al_use_transform(transform);
-      al_draw_bitmap(stage_bitmap, -800.0, 0.0, 0);
+      al_draw_bitmap(stage_bitmap, Float(-(screen_width)), 0.0, 0);
       Fighter.Draw(player_one);
       Fighter.Draw(player_two);
       al_identity_transform(transform);
