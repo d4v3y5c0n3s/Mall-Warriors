@@ -9,7 +9,7 @@ package Globals is
   subtype input_ids is input_tree_id range up .. atk_6;
   
   frame_duration : constant Duration := 1.0 / 60.0;
-  input_buffer_frames : constant Integer := 32;
+  input_buffer_frames : constant Integer := 28;
   
   type Input_Tree_Node(ID : input_tree_id) is record
     case ID is
@@ -33,11 +33,12 @@ package Globals is
   type Animation_Data_Access is access Animation_Data;
   
   type Hitbox is record
-    identity : Integer;
-    shape : Circle;
+    identity : Integer := 0;
+    shape : Circle := Circle'(pos => Position'(X => 0.0, Y => 0.0), radius => 10.0);
     hit : Boolean := false;
     damage : Integer := 0;
     knockback_vertical, knockback_horizontal : Scalar := 0.0;
+    knockback_duration : Natural := 0;
     hitstun_duration : Natural := 0;
   end record;
   

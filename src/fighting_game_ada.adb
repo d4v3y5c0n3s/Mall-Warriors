@@ -101,6 +101,17 @@ procedure Fighting_Game_Ada is
           cursor := Fighter.Active_Hitboxes.Next(cursor);
         end loop;
       end Mark_Matching_As_Hit;
+      
+      procedure On_Hit is
+      begin
+        Defender.hitpoints := Defender.hitpoints - elem.damage;
+        Defender.hitstun_duration := elem.hitstun_duration;
+        Defender.knockback_velocity_vertical := elem.knockback_vertical;
+        Defender.knockback_velocity_horizontal := elem.knockback_horizontal;
+        Defender.knockback_duration := elem.knockback_duration;
+        Defender.doing_action := false;
+        Defender.dash_duration := 0;
+      end On_Hit;
     begin
       while Fighter.Active_Hitboxes.Has_Element(index) loop
         elem := Fighter.Active_Hitboxes.Element(index);
@@ -113,12 +124,12 @@ procedure Fighting_Game_Ada is
         if not elem.hit then
           if Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.upper_hitbox + Defender.pos + Defender.sprite_offset) then
             if not Defender.blocking or Defender.crouching then
-              Defender.hitpoints := Defender.hitpoints - elem.damage;
+              On_Hit;
             end if;
             Mark_Matching_As_Hit(elem.identity);
           elsif Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.lower_hitbox + Defender.pos + Defender.sprite_offset) then
             if not Defender.blocking or not Defender.crouching then
-              Defender.hitpoints := Defender.hitpoints - elem.damage;
+              On_Hit;
             end if;
             Mark_Matching_As_Hit(elem.identity);
           end if;
@@ -170,6 +181,7 @@ begin
               damage => 20,
               knockback_vertical => 40.0,
               knockback_horizontal => 50.0,
+              knockback_duration => 2,
               hitstun_duration => 10
             ))
           )),
@@ -181,6 +193,7 @@ begin
               damage => 20,
               knockback_vertical => 40.0,
               knockback_horizontal => 50.0,
+              knockback_duration => 2,
               hitstun_duration => 10
             ))
           )),
@@ -189,9 +202,56 @@ begin
           ))
         )
       ),
-      0);
+    0);
+    Fighter.Add_Move(player_one,
+      Move.Move'(
+        command => new Move.Move_Input_Sequence'(
+          new Input_Tree_Node'(ID => left),
+          new Input_Tree_Node'(ID => down),
+          new Input_Tree_Node'(ID => right),
+          new Input_Tree_Node'(ID => atk_4)
+        ),
+        steps => new Move.Move_Step_Array'(
+          new Move.Move_Step'(
+            frame_duration => 3,
+            operations => new Move.Move_Sub_Step_Collection'(
+              0 => new Move.Move_Sub_Step'(
+                O => Move.Play_Animation,
+                anim => new Animation_Data'(
+                  0 => Animation_Frame'(x_start => 0.0, y_start => 200.0, frame_dration => 2),
+                  1 => Animation_Frame'(x_start => 200.0, y_start => 200.0, frame_dration => 1)
+                )
+              )
+            )
+          ),
+          new Move.Move_Step'(
+            frame_duration => 3,
+            operations => new Move.Move_Sub_Step_Collection'(
+              0 => new Move.Move_Sub_Step'(
+                O => Move.Dash,
+                dash_duration => 3,
+                dash_vertical => 20.0,
+                dash_horizontal => 20.0
+              )
+            )
+          ),
+          new Move.Move_Step'(
+            frame_duration => 11,
+            operations => new Move.Move_Sub_Step_Collection'(
+              0 => new Move.Move_Sub_Step'(
+                O => Move.Play_Animation,
+                anim => new Animation_Data'(
+                  0 => Animation_Frame'(x_start => 200.0, y_start => 200.0, frame_dration => 6),
+                  1 => Animation_Frame'(x_start => 0.0, y_start => 200.0, frame_dration => 5)
+                )
+              )
+            )
+          )
+        )
+      ),
+    1);
       
-      stage_bitmap := al_load_bitmap(New_String("assets/colorful_stage.png"));
+    stage_bitmap := al_load_bitmap(New_String("assets/colorful_stage.png"));
     
     loop
       frame_start_time := Clock;
@@ -291,10 +351,11 @@ begin
           players_colliding : Boolean := Collides(player_one.chunkbox + player_one.pos, player_two.chunkbox + player_two.pos);
           p1_hitstunned : Boolean := player_one.hitstun_duration > 0;
           p2_hitstunned : Boolean := player_two.hitstun_duration > 0;
+          p1_is_left : Boolean := player_one.pos.X < player_two.pos.X;
           
           function uncollide_wall (Player : Fighter.Fighter; Touching : Wall_Collision) return Scalar is
             value : Scalar := Player.pos.X + Player.chunkbox.pos.X;
-            absolute_value : Scalar := (if value /= 0.0 then Scalar(value * value) / value else 0.0);
+            absolute_value : Scalar := abs value;
             difference : Scalar := 0.0;
             
             procedure calculate_difference is
@@ -312,7 +373,7 @@ begin
                 rad := Player.chunkbox.radius;
                 dir := 1.0;
               end if;
-              absolute_wall_x := (if WallX /= 0.0 then Scalar(WallX * WallX) / WallX else 0.0);
+              absolute_wall_x := abs WallX;
               difference := dir * (rad + absolute_value - absolute_wall_x);
             end calculate_difference;
           begin
@@ -326,27 +387,73 @@ begin
               return Player.pos.X;
             end if;
           end uncollide_wall;
+          
+          type Uncollide_Dir is (Left, Right);
+          
+          function uncollide_player (ToMove : Fighter.Fighter; From : Fighter.Fighter; Direction : Uncollide_Dir) return Scalar is
+            move_rad : Scalar := ToMove.chunkbox.radius;
+            from_rad : Scalar := From.chunkbox.radius;
+            dir : Scalar := 0.0;
+          begin
+            case Direction is
+              when Left =>
+                dir := -1.0;
+              when Right =>
+                dir := 1.0;
+            end case;
+            return From.pos.X + (dir * (From.chunkbox.pos.X + move_rad + from_rad + ToMove.chunkbox.pos.X));
+          end uncollide_player;
         begin
-          -- Need a series of rules to determine which determine which fighter gets moved and in which direction
-          -- Incorporates details such as:
-          --  Which fighters are touching a wall?
-          --  Are the fighters colliding?
-          --  Which fighters are hitstunned?
           if players_colliding then
             if p1_touching_wall = p2_touching_wall and p1_touching_wall /= None then
-              null;
-              -- First, uncollide both from the wall
-              -- Then, if they still collide, uncollide the player who was furthest from the wall in the opposite direction from the wall
+              player_one.pos.X := uncollide_wall(player_one, p1_touching_wall);
+              player_two.pos.X := uncollide_wall(player_two, p2_touching_wall);
+              
+              if p1_touching_wall = Left_Collision then
+                if p1_is_left then
+                  player_two.pos.X := uncollide_player(player_two, player_one, Right);
+                else
+                   player_one.pos.X := uncollide_player(player_one, player_two, Right);
+                end if;
+              elsif p1_touching_wall = Right_Collision then
+                if p1_is_left then
+                  player_one.pos.X := uncollide_player(player_one, player_two, Left);
+                else
+                  player_two.pos.X := uncollide_player(player_two, player_one, Left);
+                end if;
+              end if;
             elsif p1_touching_wall /= None and p2_touching_wall = None then
-              null;
+              if p1_touching_wall = Left_Collision then
+                player_two.pos.X := uncollide_player(player_two, player_one, Right);
+              elsif p1_touching_wall = Right_Collision then
+                player_two.pos.X := uncollide_player(player_two, player_one, Left);
+              end if;
             elsif p2_touching_wall /= None and p1_touching_wall = None then
-              null;
+              if p2_touching_wall = Left_Collision then
+                player_one.pos.X := uncollide_player(player_one, player_two, Right);
+              elsif p2_touching_wall = Right_Collision then
+                player_one.pos.X := uncollide_player(player_one, player_two, Left);
+              end if;
             elsif p1_hitstunned and not p2_hitstunned then
-              null;
+              if p1_is_left then
+                player_one.pos.X := uncollide_player(player_one, player_two, Left);
+              else
+                player_one.pos.X := uncollide_player(player_one, player_two, Right);
+              end if;
             elsif not p1_hitstunned and p2_hitstunned then
-              null;
+              if p1_is_left then
+                player_two.pos.X := uncollide_player(player_two, player_one, Right);
+              else
+                player_two.pos.X := uncollide_player(player_two, player_one, Left);
+              end if;
             else
-              null;
+              if p1_is_left then
+                player_one.pos.X := uncollide_player(player_one, player_two, Left);
+                player_two.pos.X := uncollide_player(player_two, player_one, Right);
+              else
+                player_one.pos.X := uncollide_player(player_one, player_two, Right);
+                player_two.pos.X := uncollide_player(player_two, player_one, Left);
+              end if;
             end if;
           else
             player_one.pos.X := uncollide_wall(player_one, p1_touching_wall);

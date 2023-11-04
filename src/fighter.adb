@@ -58,7 +58,7 @@ package body Fighter is
     Queue_Input(F, Frame_And_Input'(frame, given_input));
     case given_input is
       when up =>
-        if F.on_ground then
+        if F.on_ground and not (F.hitstun_duration > 0) then
           F.on_ground := false;
           F.velocity_vertical := F.jump_speed;
           F.strafing_left := F.moving_left;
@@ -215,13 +215,13 @@ package body Fighter is
         for I in F.active_move_steps(F.move_step_index).operations'Range loop
           Operation_Step:
             declare
-              operation : Move.Move_Sub_Step_Access := F.active_move_steps(F.move_step_index).operations(I);
+              operation : constant Move.Move_Sub_Step_Access := F.active_move_steps(F.move_step_index).operations(I);
             begin
               case operation.O is
                 when Move.Play_Animation =>
-                  null;
-                when Move.Apply_Velocity =>
-                  null;
+                  F.active_animation := operation.anim;
+                  F.active_anim_index := 0;
+                  F.animation_progression := 0;
                 when Move.Spawn_Hitbox =>
                   Mark_As_Hit_If_Existing_ID_Hit:
                     declare
@@ -261,6 +261,12 @@ package body Fighter is
                         raise Hitbox_To_Despawn_Not_Found;
                       end if;
                     end Find_and_Despawn;
+                when Move.Dash =>
+                  F.dash_duration := operation.dash_duration;
+                  F.dash_velocity_vertical := operation.dash_vertical;
+                  F.dash_velocity_horizontal := operation.dash_horizontal;
+                when Move.Play_Sound =>
+                  null;
               end case;
             end Operation_Step;
         end loop;
@@ -293,38 +299,46 @@ package body Fighter is
     end if;
     
     -- update position based on velocity
-    if not (F.hitstun_duration > 0) then
-      if F.on_ground then
-        if F.moving_left and not F.moving_right then
-          F.velocity_horizontal := -F.walk_speed;
-        elsif F.moving_right and not F.moving_left then
-          F.velocity_horizontal := F.walk_speed;
+    if (F.knockback_duration > 0) then
+      F.velocity_vertical := -F.knockback_velocity_vertical;
+      if F.facing_right then
+        F.velocity_horizontal := -F.knockback_velocity_horizontal;
+      else
+        F.velocity_horizontal := F.knockback_velocity_horizontal;
+      end if;
+    elsif not (F.hitstun_duration > 0) then
+      if (F.dash_duration > 0) then
+        F.velocity_vertical := -F.dash_velocity_vertical;
+        if F.facing_right then
+          F.velocity_horizontal := F.dash_velocity_horizontal;
         else
-          F.velocity_horizontal := 0.0;
+          F.velocity_horizontal := -F.dash_velocity_horizontal;
         end if;
       else
-        if F.strafing_left and not F.strafing_right then
-          F.velocity_horizontal := -F.air_strafe_speed;
-        elsif F.strafing_right and not F.strafing_left then
-          F.velocity_horizontal := F.air_strafe_speed;
+        if F.on_ground then
+          if F.moving_left and not F.moving_right then
+            F.velocity_horizontal := -F.walk_speed;
+          elsif F.moving_right and not F.moving_left then
+            F.velocity_horizontal := F.walk_speed;
+          else
+            F.velocity_horizontal := 0.0;
+          end if;
         else
-          F.velocity_horizontal := 0.0;
+          if F.strafing_left and not F.strafing_right then
+            F.velocity_horizontal := -F.air_strafe_speed;
+          elsif F.strafing_right and not F.strafing_left then
+            F.velocity_horizontal := F.air_strafe_speed;
+          else
+            F.velocity_horizontal := 0.0;
+          end if;
         end if;
       end if;
     end if;
     
-    -- How do I handle knockback?
-    -- How do I hanlde special moves that make the fighter move like dashes?
-    -- having vertical & horizontal "knockback" & "dash" velocity variables would allow for the maximum degree of control here
-    --knockback_velocity_vertical
-    --knockback_velocity_horizontal
-    --dash_velocity_vertical
-    --dash_velocity_horizontal
-    
     F.pos := Position'(F.pos.X + F.velocity_horizontal, F.pos.Y + F.velocity_vertical);
     
     -- apply gravity
-    if not F.on_ground then
+    if not F.on_ground and not (F.dash_duration > 0) and not (F.knockback_duration > 0) then
       F.velocity_vertical := F.velocity_vertical + F.gravity;
     else
       F.velocity_vertical := 0.0;
@@ -332,6 +346,22 @@ package body Fighter is
     
     if F.hitstun_duration > 0 then
       F.hitstun_duration := F.hitstun_duration - 1;
+    end if;
+    
+    if F.knockback_duration > 0 then
+      F.knockback_duration := F.knockback_duration - 1;
+      
+      if F.knockback_duration = 0 then
+        F.on_ground := false;
+      end if;
+    end if;
+    
+    if F.dash_duration > 0 then
+      F.dash_duration := F.dash_duration - 1;
+      
+      if F.dash_duration = 0 then
+        F.on_ground := false;
+      end if;
     end if;
   end Update;
   

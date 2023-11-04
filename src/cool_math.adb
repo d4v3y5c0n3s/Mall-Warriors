@@ -15,6 +15,11 @@ package body Cool_Math is
     return Circle'(pos => C.pos + P, radius => C.radius);
   end "+";
   
+  function "abs" (S : Scalar) return Scalar is
+  begin
+    return (if S /= 0.0 then Scalar(S * S) / S else 0.0);
+  end "abs";
+  
   function Collides (A, B: Circle) return Boolean is
     dist_to_collide : Scalar := A.radius + B.radius;
     dist : Scalar := ((B.pos.X - A.pos.X) + (B.pos.Y - A.pos.Y));

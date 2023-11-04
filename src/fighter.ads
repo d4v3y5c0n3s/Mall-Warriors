@@ -3,6 +3,7 @@ with Move;
 with Globals; use Globals;
 with allegro5_bitmap_h;
 with Ada.Containers.Doubly_Linked_Lists;
+with allegro_audio_h;
 
 package Fighter is
 
@@ -24,6 +25,8 @@ package Fighter is
     frame : Natural;
     input : input_ids;
   end record;
+  
+  type Fighter_Sounds is array(Natural range <>) of allegro_audio_h.ALLEGRO_SAMPLE;
   
   package Inputs_List is new Ada.Containers.Doubly_Linked_Lists(Frame_And_Input);
   
@@ -51,15 +54,15 @@ package Fighter is
     jump_speed : Scalar := -20.0;
     velocity_horizontal : Scalar := 0.0;
     velocity_vertical : Scalar := 0.0;
-    knockback_velocity_vertical : Scalar := 0.0;
-    knockback_velocity_horizontal : Scalar := 0.0;
-    dash_velocity_vertical : Scalar := 0.0;
-    dash_velocity_horizontal : Scalar := 0.0;
+    knockback_velocity_vertical, knockback_velocity_horizontal : Scalar := 0.0;
+    knockback_duration : Natural := 0;
+    dash_velocity_vertical, dash_velocity_horizontal : Scalar := 0.0;
+    dash_duration : Natural := 0;
     hitpoints : Integer := 100;
     pos : Position := Position'(0.0, 0.0);
     upper_hitbox : Circle := Circle'(pos => Position'(X => 0.0, Y => -50.0), radius => 50.0);--upper body hitbox
     lower_hitbox : Circle := Circle'(pos => Position'(X => 0.0, Y => 50.0), radius => 50.0);--lower body hitbox
-    chunkbox : Circle := Circle'(pos => Position'(X => 0.0, Y => 0.0), radius => 60.0);--body chunkbox
+    chunkbox : Circle := Circle'(pos => Position'(X => 0.0, Y => 0.0), radius => 40.0);--body chunkbox
     bottom_of_feet : Position := Position'(0.0, 100.0);-- used for detecting the floor
     sprite_data : Sprite_Access := new Sprite(S => none);
     frame_width : Integer := 200;
@@ -76,6 +79,7 @@ package Fighter is
     active_anim_index : Natural := 0;
     animation_progression : Natural := 0;
     show_hitboxes : Boolean := true;
+    sounds : access Fighter_Sounds := new Fighter_Sounds(0 .. 8);
   end record;
   
   procedure Press_Input(F : in out Fighter; given_input : input_ids; frame : Natural);

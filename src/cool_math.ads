@@ -18,6 +18,8 @@ package Cool_Math is
   
   function "+" (C : Circle; P : Position) return Circle;
   
+  function "abs" (S : Scalar) return Scalar;
+  
   function Collides (A, B: Circle) return Boolean;
 
 end Cool_Math;

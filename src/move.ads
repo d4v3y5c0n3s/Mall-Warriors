@@ -3,17 +3,21 @@ with Cool_Math; use Cool_Math;
 
 package Move is
 
-  type Sub_Step is (Play_Animation, Apply_Velocity, Spawn_Hitbox, Despawn_Hitbox);
+  type Sub_Step is (Play_Animation, Spawn_Hitbox, Despawn_Hitbox, Dash, Play_Sound);
   type Move_Sub_Step (O : Sub_Step) is record
     case O is
       when Play_Animation =>
         anim : Animation_Data_Access := new Animation_Data(0 .. 32);
-      when Apply_Velocity =>
-        vel : Position;
       when Spawn_Hitbox =>
         hb : Hitbox;
       when Despawn_Hitbox =>
         despawn_hitbox_id : Integer;
+      when Dash =>
+        dash_duration : Natural;
+        dash_vertical : Scalar;
+        dash_horizontal : Scalar;
+      when Play_Sound =>
+        null;
     end case;
   end record;
   type Move_Sub_Step_Access is access Move_Sub_Step;
