@@ -26,7 +26,10 @@ package Fighter is
     input : input_ids;
   end record;
   
-  type Fighter_Sounds is array(Natural range <>) of allegro_audio_h.ALLEGRO_SAMPLE;
+  type Single_Sound is record
+    value : access allegro_audio_h.ALLEGRO_SAMPLE;
+  end record;
+  type Fighter_Sounds is array(Natural range <>) of Single_Sound;
   
   package Inputs_List is new Ada.Containers.Doubly_Linked_Lists(Frame_And_Input);
   

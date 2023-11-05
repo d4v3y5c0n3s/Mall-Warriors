@@ -17,7 +17,7 @@ package Move is
         dash_vertical : Scalar;
         dash_horizontal : Scalar;
       when Play_Sound =>
-        null;
+        sound_index : Natural;
     end case;
   end record;
   type Move_Sub_Step_Access is access Move_Sub_Step;

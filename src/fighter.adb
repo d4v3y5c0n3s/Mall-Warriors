@@ -266,7 +266,20 @@ package body Fighter is
                   F.dash_velocity_vertical := operation.dash_vertical;
                   F.dash_velocity_horizontal := operation.dash_horizontal;
                 when Move.Play_Sound =>
-                  null;
+                  Try_To_Play_Sound:
+                    declare
+                      success : Boolean;
+                      sample_id : access allegro_audio_h.ALLEGRO_SAMPLE_ID := new allegro_audio_h.ALLEGRO_SAMPLE_ID;
+                    begin
+                      success := Boolean(
+                        allegro_audio_h.al_play_sample(
+                          F.sounds(operation.sound_index).value,
+                          1.0, 0.0, 1.0,
+                          allegro_audio_h.ALLEGRO_PLAYMODE_ONCE,
+                          sample_id
+                        )
+                      );
+                    end Try_To_Play_Sound;
               end case;
             end Operation_Step;
         end loop;

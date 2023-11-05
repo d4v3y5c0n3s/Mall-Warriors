@@ -23,6 +23,8 @@ with Globals; use Globals;
 with Fighter;
 with Move;
 with Cool_Math; use Cool_Math;
+with Stage_Data; use Stage_Data;
+with Fighter_Data; use Fighter_Data;
 
 procedure Fighting_Game_Ada is
   
@@ -43,7 +45,7 @@ procedure Fighting_Game_Ada is
   transform : access ALLEGRO_TRANSFORM := new ALLEGRO_TRANSFORM;
   frame : Natural := 0;
   camera_pos : Position;
-  stage_bitmap : access ALLEGRO_BITMAP := new ALLEGRO_BITMAP;
+  stage : Stage_Assets;
   
   Allegro_Initialization_Failure : exception;
   
@@ -165,93 +167,12 @@ begin
     debug_attack_hitbox_color := al_map_rgb(220, 50, 50);
     debug_chunkbox_color := al_map_rgb(87, 87, 82);
     
-    player_one.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
-    player_two.sprite_data := new Fighter.Sprite'(S => Fighter.has_bitmap, bitmap => al_load_bitmap(New_String("assets/shambler.png")));
+    player_one := Load_Fighter(Test);
+    player_two := Load_Fighter(Test);
     player_one.pos := Position'(200.0, 400.0);
     player_two.pos := Position'(600.0, 400.0);
-    Fighter.Add_Move(player_one,
-      Move.Move'(
-        command => new Move.Move_Input_Sequence'(new Input_Tree_Node'(ID => up), new Input_Tree_Node'(ID => atk_1)),
-        steps => new Move.Move_Step_Array'(
-          new Move.Move_Step'(frame_duration => 10, operations => new Move.Move_Sub_Step_Collection'(
-            0 => new Move.Move_Sub_Step'(O => Move.Spawn_Hitbox, hb => Hitbox'(
-              identity => 1,
-              shape => Circle'(pos => Position'(100.0, 0.0), radius => 50.0),
-              hit => false,
-              damage => 20,
-              knockback_vertical => 40.0,
-              knockback_horizontal => 50.0,
-              knockback_duration => 2,
-              hitstun_duration => 10
-            ))
-          )),
-          new Move.Move_Step'(frame_duration => 10, operations => new Move.Move_Sub_Step_Collection'(
-            0 => new Move.Move_Sub_Step'(O => Move.Spawn_Hitbox, hb => Hitbox'(
-              identity => 1,
-              shape => Circle'(pos => Position'(150.0, 0.0), radius => 50.0),
-              hit => false,
-              damage => 20,
-              knockback_vertical => 40.0,
-              knockback_horizontal => 50.0,
-              knockback_duration => 2,
-              hitstun_duration => 10
-            ))
-          )),
-          new Move.Move_Step'(frame_duration => 10, operations => new Move.Move_Sub_Step_Collection'(
-            0 => new Move.Move_Sub_Step'(O => Move.Despawn_Hitbox, despawn_hitbox_id =>  1)
-          ))
-        )
-      ),
-    0);
-    Fighter.Add_Move(player_one,
-      Move.Move'(
-        command => new Move.Move_Input_Sequence'(
-          new Input_Tree_Node'(ID => left),
-          new Input_Tree_Node'(ID => down),
-          new Input_Tree_Node'(ID => right),
-          new Input_Tree_Node'(ID => atk_4)
-        ),
-        steps => new Move.Move_Step_Array'(
-          new Move.Move_Step'(
-            frame_duration => 3,
-            operations => new Move.Move_Sub_Step_Collection'(
-              0 => new Move.Move_Sub_Step'(
-                O => Move.Play_Animation,
-                anim => new Animation_Data'(
-                  0 => Animation_Frame'(x_start => 0.0, y_start => 200.0, frame_dration => 2),
-                  1 => Animation_Frame'(x_start => 200.0, y_start => 200.0, frame_dration => 1)
-                )
-              )
-            )
-          ),
-          new Move.Move_Step'(
-            frame_duration => 3,
-            operations => new Move.Move_Sub_Step_Collection'(
-              0 => new Move.Move_Sub_Step'(
-                O => Move.Dash,
-                dash_duration => 3,
-                dash_vertical => 20.0,
-                dash_horizontal => 20.0
-              )
-            )
-          ),
-          new Move.Move_Step'(
-            frame_duration => 11,
-            operations => new Move.Move_Sub_Step_Collection'(
-              0 => new Move.Move_Sub_Step'(
-                O => Move.Play_Animation,
-                anim => new Animation_Data'(
-                  0 => Animation_Frame'(x_start => 200.0, y_start => 200.0, frame_dration => 6),
-                  1 => Animation_Frame'(x_start => 0.0, y_start => 200.0, frame_dration => 5)
-                )
-              )
-            )
-          )
-        )
-      ),
-    1);
       
-    stage_bitmap := al_load_bitmap(New_String("assets/colorful_stage.png"));
+    stage := Load_Stage(Test1);
     
     loop
       frame_start_time := Clock;
@@ -482,7 +403,7 @@ begin
       al_identity_transform(transform);
       al_translate_transform(transform, Float(camera_pos.X), Float(camera_pos.Y));
       al_use_transform(transform);
-      al_draw_bitmap(stage_bitmap, Float(-(screen_width)), 0.0, 0);
+      al_draw_bitmap(stage.background, Float(-(screen_width)), 0.0, 0);
       Fighter.Draw(player_one);
       Fighter.Draw(player_two);
       al_identity_transform(transform);
