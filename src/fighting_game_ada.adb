@@ -21,7 +21,6 @@ with allegro5_bitmap_h; use allegro5_bitmap_h;
 with allegro5_bitmap_draw_h; use allegro5_bitmap_draw_h;
 with Globals; use Globals;
 with Fighter;
-with Move;
 with Cool_Math; use Cool_Math;
 with Stage_Data; use Stage_Data;
 with Fighter_Data; use Fighter_Data;
@@ -111,9 +110,30 @@ procedure Fighting_Game_Ada is
         Defender.knockback_velocity_vertical := elem.knockback_vertical;
         Defender.knockback_velocity_horizontal := elem.knockback_horizontal;
         Defender.knockback_duration := elem.knockback_duration;
-        Defender.doing_action := false;
         Defender.dash_duration := 0;
+        Fighter.Execute_Move(Defender, Defender.on_hit_steps, Hit_By_Attack);
       end On_Hit;
+      
+      procedure On_Block is
+      begin
+        Defender.blockstun_duration := universal_blockstun;
+        Fighter.Execute_Move(Defender, Defender.block_steps, Blocked_Attack);
+      end On_Block;
+      
+      procedure On_Grab is
+      begin
+        if Attacker.grabbing and Defender.grabbing then
+          Attacker.knockback_velocity_horizontal := counter_grab_pushback;
+          Attacker.knockback_duration := counter_grab_push_duration;
+          Defender.knockback_velocity_horizontal := counter_grab_pushback;
+          Defender.knockback_duration := counter_grab_push_duration;
+        else
+          Defender.grabbed := true;
+          Fighter.Execute_Move(Attacker, Attacker.grab_actions_steps(elem.grab_opponent_steps_index), Grabbing);
+          Fighter.Execute_Move(Defender, Attacker.grabbed_opponent_reactions_steps(elem.grab_opponent_steps_index), Grabbed);
+        end if;
+      end On_Grab;
+      
     begin
       while Fighter.Active_Hitboxes.Has_Element(index) loop
         elem := Fighter.Active_Hitboxes.Element(index);
@@ -125,14 +145,28 @@ procedure Fighting_Game_Ada is
         
         if not elem.hit then
           if Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.upper_hitbox + Defender.pos + Defender.sprite_offset) then
-            if not Defender.blocking or Defender.crouching then
-              On_Hit;
-            end if;
+            case elem.effect is
+              when Attack =>
+                if Defender.blocking and not Defender.crouching then
+                  On_Block;
+                else
+                  On_Hit;
+                end if;
+              when Grab =>
+                On_Grab;
+            end case;
             Mark_Matching_As_Hit(elem.identity);
           elsif Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.lower_hitbox + Defender.pos + Defender.sprite_offset) then
-            if not Defender.blocking or not Defender.crouching then
-              On_Hit;
-            end if;
+            case elem.effect is
+              when Attack =>
+                if Defender.blocking and Defender.crouching then
+                  On_Block;
+                else
+                  On_Hit;
+                end if;
+              when Grab =>
+                On_Grab;
+            end case;
             Mark_Matching_As_Hit(elem.identity);
           end if;
         end if;
@@ -140,6 +174,43 @@ procedure Fighting_Game_Ada is
         index := Fighter.Active_Hitboxes.Next(index);
       end loop;
   end Collide_Attacks_With;
+  
+  procedure Set_Players_Blocking (F1 : in out Fighter.Fighter; F2 : in out Fighter.Fighter) is
+  begin
+    if F1.pos.X < F2.pos.X then
+      if F1.holding_left then
+        F1.blocking := true;
+      elsif F1.holding_right then
+        F1.blocking := false;
+      else
+        F1.blocking := false;
+      end if;
+      
+      if F2.holding_left then
+        F2.blocking := false;
+      elsif F2.holding_right then
+        F2.blocking := true;
+      else
+        F2.blocking := false;
+      end if;
+    else
+      if F1.holding_left then
+        F1.blocking := false;
+      elsif F1.holding_right then
+        F1.blocking := true;
+      else
+        F1.blocking := false;
+      end if;
+      
+      if F2.holding_left then
+        F2.blocking := true;
+      elsif F2.holding_right then
+        F2.blocking := false;
+      else
+        F2.blocking := false;
+      end if;
+    end if;
+  end Set_Players_Blocking;
   
 begin
   
@@ -203,6 +274,11 @@ begin
                   Fighter.Press_Input(player_one, Globals.atk_5, frame);
                 when 12 =>-- l
                   Fighter.Press_Input(player_one, Globals.atk_6, frame);
+                when 59 =>-- esc
+                  null;-- use this for a pause menu later
+                when 75 =>-- spacebar
+                  player_one.show_hitboxes := not player_one.show_hitboxes;
+                  player_two.show_hitboxes := not player_two.show_hitboxes;
                 when others =>
                   null;
               end case;
@@ -240,19 +316,19 @@ begin
       end loop;
       
       if (player_one.pos.X + player_one.sprite_offset.X) < (player_two.pos.X + player_two.sprite_offset.X) then
-        if not player_one.facing_right and player_one.on_ground and not player_one.doing_action and Fighter.Inputs_List.Is_Empty(player_one.inputs) then
+        if not player_one.facing_right and player_one.on_ground and not (player_one.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(player_one.inputs) then
           player_one.facing_right := true;
         end if;
         
-        if player_two.facing_right and player_two.on_ground and not player_two.doing_action and Fighter.Inputs_List.Is_Empty(player_two.inputs) then
+        if player_two.facing_right and player_two.on_ground and not (player_two.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(player_two.inputs) then
           player_two.facing_right := false;
         end if;
       else
-        if player_one.facing_right and player_one.on_ground and not player_one.doing_action and Fighter.Inputs_List.Is_Empty(player_one.inputs) then
+        if player_one.facing_right and player_one.on_ground and not (player_one.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(player_one.inputs) then
           player_one.facing_right := false;
         end if;
         
-        if not player_two.facing_right and player_two.on_ground and not player_two.doing_action and Fighter.Inputs_List.Is_Empty(player_two.inputs) then
+        if not player_two.facing_right and player_two.on_ground and not (player_two.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(player_two.inputs) then
           player_two.facing_right := true;
         end if;
       end if;
@@ -325,7 +401,7 @@ begin
             return From.pos.X + (dir * (From.chunkbox.pos.X + move_rad + from_rad + ToMove.chunkbox.pos.X));
           end uncollide_player;
         begin
-          if players_colliding then
+          if players_colliding and not (player_one.grabbed or player_two.grabbed) then
             if p1_touching_wall = p2_touching_wall and p1_touching_wall /= None then
               player_one.pos.X := uncollide_wall(player_one, p1_touching_wall);
               player_two.pos.X := uncollide_wall(player_two, p2_touching_wall);
@@ -381,6 +457,8 @@ begin
             player_two.pos.X := uncollide_wall(player_two, p2_touching_wall);
           end if;
         end FighterGeneralCollision;
+      
+      Set_Players_Blocking(player_one, player_two);
       
       Collide_Attacks_With(player_one, player_two);
       Collide_Attacks_With(player_two, player_one);

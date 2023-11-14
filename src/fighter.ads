@@ -36,6 +36,8 @@ package Fighter is
   package Active_Hitboxes is new Ada.Containers.Doubly_Linked_Lists(Hitbox);
   
   Hitbox_To_Despawn_Not_Found : exception;
+  
+  type Move_Steps_Collection is array(Natural range <>) of Move.Move_Step_Array_Access;
 
   type Fighter is tagged record
     inputs : Inputs_List.List;
@@ -45,12 +47,16 @@ package Fighter is
     crouching : Boolean := false;
     on_ground : Boolean := true;
     hitstun_duration : Natural := 0;
-    doing_action : Boolean := false;
+    blockstun_duration : Natural := 0;
+    doing : What_Doing := Idle;
     facing_right : Boolean := true;
-    moving_right : Boolean := false;
-    moving_left : Boolean := false;
+    holding_right : Boolean := false;
+    holding_left : Boolean := false;
+    holding_down : Boolean := false;
     strafing_left : Boolean := false;
     strafing_right : Boolean := false;
+    grabbed : Boolean := false;
+    grabbing : Boolean := false;
     gravity : Scalar := 1.0;
     walk_speed : Scalar := 7.0;
     air_strafe_speed : Scalar := 5.0;
@@ -73,7 +79,7 @@ package Fighter is
     sprite_offset : Position := Position'(-100.0, -100.0);
     attack_hitboxes : Active_Hitboxes.List;
     active_move_steps : Move.Move_Step_Array_Access := new Move.Move_Step_Array(1 .. 20);
-    move_step_index : Positive := 1;
+    move_step_index : Natural := 0;
     move_frame_progression : Natural := 0;
     active_animation : Animation_Data_Access := new Animation_Data'(
       0 => Animation_Frame'(x_start => 0.0, y_start => 0.0, frame_dration => 5),
@@ -81,8 +87,16 @@ package Fighter is
     );
     active_anim_index : Natural := 0;
     animation_progression : Natural := 0;
-    show_hitboxes : Boolean := true;
+    show_hitboxes : Boolean := false;
     sounds : access Fighter_Sounds := new Fighter_Sounds(0 .. 8);
+    on_hit_steps : Move.Move_Step_Array_Access;
+    start_crouch_steps : Move.Move_Step_Array_Access;
+    start_uncrouch_steps : Move.Move_Step_Array_Access;
+    idle_crouch_steps : Move.Move_Step_Array_Access;
+    idle_stand_steps : Move.Move_Step_Array_Access;
+    block_steps : Move.Move_Step_Array_Access;
+    grab_actions_steps : access Move_Steps_Collection;
+    grabbed_opponent_reactions_steps : access Move_Steps_Collection;
   end record;
   
   procedure Press_Input(F : in out Fighter; given_input : input_ids; frame : Natural);
@@ -95,7 +109,9 @@ package Fighter is
   
   procedure Update (F : in out Fighter; Current_Frame : Natural);
   
-  procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move);
+  procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move_Step_Array_Access; Doing : What_Doing);
+  
+  function Stunned (F : in Fighter) return Boolean is ((F.hitstun_duration > 0) or (F.blockstun_duration > 0) or F.grabbed);
   
 private
 

@@ -27,13 +27,16 @@ package Move is
     operations : access Move_Sub_Step_Collection;
   end record;
   type Move_Step_Access is access Move_Step;
-  type Move_Step_Array is array(Positive range <>) of Move_Step_Access;
+  type Move_Step_Array is array(Natural range <>) of Move_Step_Access;
   type Move_Step_Array_Access is access Move_Step_Array;
   
-  type Move_Input_Sequence is array(Positive range <>) of Input_Tree_Node_Access;
+  type Move_Input_Sequence is array(Natural range <>) of Input_Tree_Node_Access;
+  
+  type Move_Specialty is (None, Grab);
   
   type Move is record
     command : access Move_Input_Sequence;
+    doing : Move_Specialty;
     steps : Move_Step_Array_Access;
   end record;
 

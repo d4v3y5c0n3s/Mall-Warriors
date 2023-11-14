@@ -58,16 +58,21 @@ package body Fighter is
     Queue_Input(F, Frame_And_Input'(frame, given_input));
     case given_input is
       when up =>
-        if F.on_ground and not (F.hitstun_duration > 0) then
+        if F.on_ground and not Stunned(F) then
           F.on_ground := false;
           F.velocity_vertical := F.jump_speed;
-          F.strafing_left := F.moving_left;
-          F.strafing_right := F.moving_right;
+          F.strafing_left := F.holding_left;
+          F.strafing_right := F.holding_right;
         end if;
       when left =>
-        F.moving_left := true;
+        F.holding_left := true;
       when right =>
-        F.moving_right := true;
+        F.holding_right := true;
+      when down =>
+        if F.on_ground and not Stunned(F) then
+          F.crouching := true;
+          Execute_Move(F, F.start_crouch_steps, Start_Crouch);
+        end if;
       when others =>
         null;
     end case;
@@ -77,9 +82,14 @@ package body Fighter is
   begin
     case given_input is
       when left =>
-        F.moving_left := false;
+        F.holding_left := false;
       when right =>
-        F.moving_right := false;
+        F.holding_right := false;
+      when down =>
+        if F.crouching and not Stunned(F) then
+          F.crouching := false;
+          Execute_Move(F, F.start_uncrouch_steps, Start_Uncrouch);
+        end if;
       when others =>
         null;
     end case;
@@ -109,9 +119,9 @@ package body Fighter is
     if F.show_hitboxes then
       Draw_Debug_Hitboxes:
         declare
-          upper_hb_pos : Position := F.upper_hitbox.pos + F.pos;
-          lower_hb_pos : Position := F.lower_hitbox.pos + F.pos;
-          cb_hb_pos : Position := F.chunkbox.pos + F.pos;
+          upper_hb_pos : constant Position := F.upper_hitbox.pos + F.pos;
+          lower_hb_pos : constant Position := F.lower_hitbox.pos + F.pos;
+          cb_hb_pos : constant Position := F.chunkbox.pos + F.pos;
           index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
           elem : Hitbox;
           attack_hitbox_pos : Position;
@@ -149,12 +159,15 @@ package body Fighter is
           found_match_at_level : Boolean := false;
           match_found : Boolean := false;
           elem_at_inputs_cursor : Frame_And_Input;
+          buffer_expired : Boolean := Inputs_List.First_Element(F.inputs).frame + Globals.input_buffer_frames < Current_Frame;
+          button_delay_expired : Boolean := Inputs_List.First_Element(F.inputs).frame + input_buffer_max_button_delay < Current_Frame;
         begin
           loop
             if Inputs_List.Is_Empty(F.inputs) then
               exit;
             end if;
-            if Inputs_List.First_Element(F.inputs).frame + Globals.input_buffer_frames < Current_Frame then
+            
+            if buffer_expired or button_delay_expired then
               tree_cursor := Input_Tree.First_Child(Input_Tree.Root(F.tree_of_move_inputs));
               inputs_cursor := Inputs_List.First(F.inputs);
               loop
@@ -193,10 +206,18 @@ package body Fighter is
               
               inputs_cursor := Inputs_List.First(F.inputs);
               if match_found then
-                 --Remove found input sequence & execute the associated move
-                Inputs_List.Delete(F.inputs, inputs_cursor, Inputs_List.Length(longest_match));
-                
-                Execute_Move(F, F.moves(longest_input_chain_key));
+                if F.doing /= Normal_Move then
+                  -- Remove found input sequence & execute the associated move
+                  Inputs_List.Delete(F.inputs, inputs_cursor, Inputs_List.Length(longest_match));
+                  
+                  if not Stunned(F) then
+                    Execute_Move(F, F.moves(longest_input_chain_key).steps, Normal_Move);
+                  end if;
+                elsif buffer_expired then
+                  Inputs_List.Delete(F.inputs, inputs_cursor, Inputs_List.Length(longest_match));
+                else
+                  exit;
+                end if;
               else
                  --if loop ends with no pattern, remove top elem of F.inputs
                 Inputs_List.Delete(F.inputs, inputs_cursor);
@@ -208,82 +229,98 @@ package body Fighter is
         end ProcessInputs;
     end if;
     
-    -- if doing a move, continue processing it here
-    if F.doing_action then
-      if F.move_frame_progression = 0 then
-        -- iterate through sub-steps & apply them
-        for I in F.active_move_steps(F.move_step_index).operations'Range loop
-          Operation_Step:
-            declare
-              operation : constant Move.Move_Sub_Step_Access := F.active_move_steps(F.move_step_index).operations(I);
-            begin
-              case operation.O is
-                when Move.Play_Animation =>
-                  F.active_animation := operation.anim;
-                  F.active_anim_index := 0;
-                  F.animation_progression := 0;
-                when Move.Spawn_Hitbox =>
-                  Mark_As_Hit_If_Existing_ID_Hit:
-                    declare
-                      index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
-                      elem : Hitbox;
-                    begin
-                      while Active_Hitboxes.Has_Element(index) loop
-                        elem := Active_Hitboxes.Element(index);
-                        
-                        if elem.identity = operation.hb.identity and elem.hit then
-                          operation.hb.hit := true;
-                        end if;
-                        
-                        index := Active_Hitboxes.Next(index);
-                      end loop;
-                      Active_Hitboxes.Append(F.attack_hitboxes, operation.hb);
-                    end Mark_As_Hit_If_Existing_ID_Hit;
-                when Move.Despawn_Hitbox =>
-                  Find_and_Despawn:
-                    declare
-                      index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
-                      elem : Hitbox;
-                      found : Boolean := false;
-                    begin
-                      while Active_Hitboxes.Has_Element(index) loop
-                        elem := Active_Hitboxes.Element(index);
-                        
-                        if elem.identity = operation.despawn_hitbox_id then
-                          found := true;
-                          Active_Hitboxes.Delete(F.attack_hitboxes, index);
-                        end if;
-                        
-                        index := Active_Hitboxes.Next(index);
-                      end loop;
+    -- process move here
+    if F.move_frame_progression = 0 then
+      -- iterate through sub-steps & apply them
+      for I in F.active_move_steps(F.move_step_index).operations'Range loop
+        Operation_Step:
+          declare
+            operation : constant Move.Move_Sub_Step_Access := F.active_move_steps(F.move_step_index).operations(I);
+          begin
+            case operation.O is
+              when Move.Play_Animation =>
+                F.active_animation := operation.anim;
+                F.active_anim_index := 0;
+                F.animation_progression := 0;
+              when Move.Spawn_Hitbox =>
+                Mark_As_Hit_If_Existing_ID_Hit:
+                  declare
+                    index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
+                    elem : Hitbox;
+                  begin
+                    while Active_Hitboxes.Has_Element(index) loop
+                      elem := Active_Hitboxes.Element(index);
                       
-                      if not found then
-                        raise Hitbox_To_Despawn_Not_Found;
+                      if elem.effect = Grab then
+                        F.grabbing := true;
                       end if;
-                    end Find_and_Despawn;
-                when Move.Dash =>
-                  F.dash_duration := operation.dash_duration;
-                  F.dash_velocity_vertical := operation.dash_vertical;
-                  F.dash_velocity_horizontal := operation.dash_horizontal;
-                when Move.Play_Sound =>
-                  Try_To_Play_Sound:
-                    declare
-                      success : Boolean;
-                      sample_id : access allegro_audio_h.ALLEGRO_SAMPLE_ID := new allegro_audio_h.ALLEGRO_SAMPLE_ID;
-                    begin
-                      success := Boolean(
-                        allegro_audio_h.al_play_sample(
-                          F.sounds(operation.sound_index).value,
-                          1.0, 0.0, 1.0,
-                          allegro_audio_h.ALLEGRO_PLAYMODE_ONCE,
-                          sample_id
-                        )
-                      );
-                    end Try_To_Play_Sound;
-              end case;
-            end Operation_Step;
-        end loop;
-      end if;
+                      
+                      if elem.identity = operation.hb.identity and elem.hit then
+                        operation.hb.hit := true;
+                      end if;
+                      
+                      index := Active_Hitboxes.Next(index);
+                    end loop;
+                    Active_Hitboxes.Append(F.attack_hitboxes, operation.hb);
+                  end Mark_As_Hit_If_Existing_ID_Hit;
+              when Move.Despawn_Hitbox =>
+                Find_and_Despawn:
+                  declare
+                    index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
+                    elem : Hitbox;
+                    found : Boolean := false;
+                    another_grabbox_remains : Boolean := false;
+                    a_grabbox_was_removed : Boolean := false;
+                  begin
+                    while Active_Hitboxes.Has_Element(index) loop
+                      elem := Active_Hitboxes.Element(index);
+                      
+                      if elem.identity = operation.despawn_hitbox_id then
+                        found := true;
+                        Active_Hitboxes.Delete(F.attack_hitboxes, index);
+                        if elem.effect = Grab then
+                          a_grabbox_was_removed := true;
+                        end if;
+                      else
+                        if elem.effect = Grab then
+                          another_grabbox_remains := true;
+                        end if;
+                      end if;
+                      
+                      index := Active_Hitboxes.Next(index);
+                    end loop;
+                    
+                    if a_grabbox_was_removed and not another_grabbox_remains then
+                      F.grabbing := false;
+                    end if;
+                    
+                    if not found then
+                      raise Hitbox_To_Despawn_Not_Found;
+                    end if;
+                  end Find_and_Despawn;
+              when Move.Dash =>
+                F.dash_duration := operation.dash_duration;
+                F.dash_velocity_vertical := operation.dash_vertical;
+                F.dash_velocity_horizontal := operation.dash_horizontal;
+              when Move.Play_Sound =>
+                Try_To_Play_Sound:
+                  declare
+                    success : Boolean;
+                    sample_id : access allegro_audio_h.ALLEGRO_SAMPLE_ID := new allegro_audio_h.ALLEGRO_SAMPLE_ID;
+                  begin
+                    success := Boolean(
+                      allegro_audio_h.al_play_sample(
+                        F.sounds(operation.sound_index).value,
+                        1.0, 0.0, 1.0,
+                        allegro_audio_h.ALLEGRO_PLAYMODE_ONCE,
+                        sample_id
+                      )
+                    );
+                  end Try_To_Play_Sound;
+            end case;
+          end Operation_Step;
+      end loop;
+    end if;
       
       F.move_frame_progression := F.move_frame_progression + 1;
       
@@ -293,9 +330,20 @@ package body Fighter is
       end if;
       
       if F.move_step_index > F.active_move_steps'Last then
-        F.doing_action := false;
         Active_Hitboxes.Clear(F.attack_hitboxes);
-      end if;
+        
+        F.move_step_index := 0;
+        
+        F.grabbed := false;
+        F.grabbing := false;
+        
+        if not Stunned(F) then
+          if F.crouching then
+            Execute_Move(F, F.idle_crouch_steps, Crouched);
+          else
+            Execute_Move(F, F.idle_stand_steps, Idle);
+          end if;
+        end if;
     end if;
     
     -- continue processing the current animation here
@@ -319,7 +367,7 @@ package body Fighter is
       else
         F.velocity_horizontal := F.knockback_velocity_horizontal;
       end if;
-    elsif not (F.hitstun_duration > 0) then
+    elsif not Stunned(F) or F.grabbed then
       if (F.dash_duration > 0) then
         F.velocity_vertical := -F.dash_velocity_vertical;
         if F.facing_right then
@@ -329,9 +377,9 @@ package body Fighter is
         end if;
       else
         if F.on_ground then
-          if F.moving_left and not F.moving_right then
+          if F.holding_left and not F.holding_right then
             F.velocity_horizontal := -F.walk_speed;
-          elsif F.moving_right and not F.moving_left then
+          elsif F.holding_right and not F.holding_left then
             F.velocity_horizontal := F.walk_speed;
           else
             F.velocity_horizontal := 0.0;
@@ -361,6 +409,10 @@ package body Fighter is
       F.hitstun_duration := F.hitstun_duration - 1;
     end if;
     
+    if F.blockstun_duration > 0 then
+      F.blockstun_duration := F.blockstun_duration - 1;
+    end if;
+    
     if F.knockback_duration > 0 then
       F.knockback_duration := F.knockback_duration - 1;
       
@@ -378,14 +430,12 @@ package body Fighter is
     end if;
   end Update;
   
-  procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move) is
+  procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move_Step_Array_Access; Doing : What_Doing) is
   begin
-    if not (F.hitstun_duration > 0) and not F.doing_action then
-      F.doing_action := true;
+      F.doing := Doing;
       F.move_frame_progression := 0;
-      F.move_step_index := 1;
-      F.active_move_steps := ThisMove.steps;
-    end if;
+      F.move_step_index := 0;
+      F.active_move_steps := ThisMove;
   end Execute_Move;
 
 end Fighter;
