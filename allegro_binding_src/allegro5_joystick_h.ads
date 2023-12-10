@@ -4,7 +4,7 @@ pragma Style_Checks (Off);
 with Interfaces.C; use Interfaces.C;
 with Interfaces.C.Extensions;
 with Interfaces.C.Strings;
-limited with allegro5_events_h;
+with allegro5_events_h; use allegro5_events_h;
 
 package allegro5_joystick_h is
 
