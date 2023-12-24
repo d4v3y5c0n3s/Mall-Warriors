@@ -47,7 +47,7 @@ procedure Fighting_Game_Ada is
   
   function Menu_Move (M : Menu_Entry_Array; Index : Natural; Direction : Menu_Move_Dir) return Natural is
     ret_index : Natural := 0;
-    m_entry : Menu_Entry := M(Index);
+    m_entry : constant Menu_Entry := M(Index);
   begin
     case Direction is
       when Up =>
@@ -67,10 +67,47 @@ procedure Fighting_Game_Ada is
     M(Index).operation.all;
   end Menu_Select_Entry;
   
+  function Menu_Entries_Connect_Gridwise (M : Menu_Entry_Array; RowSize : Positive) return Menu_Entry_Array is
+    ret : Menu_Entry_Array := M;
+  begin
+    for I in M'Range loop
+      Assign_Direction_Indexes:
+        declare
+          above : constant Natural := (if (I - RowSize) in M'Range then I - RowSize else I);
+          below : constant Natural := (if (I + RowSize) in M'Range then I + RowSize else I);
+          left : constant Natural := (if (I - 1) in M'Range then I - 1 else I);
+          right : constant Natural := (if (I + 1) in M'Range then I + 1 else I);
+        begin
+          ret(I).above_move_entry := above;
+          ret(I).below_move_entry := below;
+          ret(I).left_move_entry := left;
+          ret(I).right_move_entry := right;
+        end Assign_Direction_Indexes;
+    end loop;
+    
+    return ret;
+  end Menu_Entries_Connect_Gridwise;
+  
   procedure Main_Menu_Go_To_Verses;
   procedure Main_Menu_Quit_Game;
   
-  type Game_State is (Title, Menu, Character_Select, Stage_Select, Battle, Battle_Over);
+  procedure Choose_Stage;
+  
+  procedure Choose_Character;
+  
+  stage_select_row_count : constant Positive := 5;
+  char_select_row_count : constant Positive := 5;
+  stage_select_background_path : constant String := "assets/stage_select_background.png";
+  char_select_background_path : constant String := "assets/character_select_background.png";
+  selection_cursor_player_one_path : constant String := "assets/selector_player_one.png";
+  selection_cursor_player_two_path : constant String := "assets/selector_player_two.png";
+  
+  type Icon is record
+    bitmap : access ALLEGRO_BITMAP;
+  end record;
+  type Icon_Array is array(Natural range <>) of Icon;
+  
+  type Game_State is (Title, Menu, Stage_Select, Character_Select, Battle, Battle_Over);
   type Game_State_Data (GS : Game_State) is record
     should_exit : Boolean := false;
     frame : Natural := 0;
@@ -82,18 +119,14 @@ procedure Fighting_Game_Ada is
     player_input_state_slot_one : Game_Input_State;
     player_input_state_slot_two : Game_Input_State;
     p1_input_state : Game_Input_State := Game_Input_State'(
-      LastDirUpDown => Neither,
-      LastDirLeftRight => Neither,
-      CurDirUpDown => Neither,
-      CurDirLeftRight => Neither,
+      last => (others => (others => 0.0)),
+      cur => (others => (others => 0.0)),
       translations => default_keyboard_translation,
       optional_joystick_handle => new Opt_Joy_Handle(J => No_Joy)
     );
     p2_input_state : Game_Input_State := Game_Input_State'(
-      LastDirUpDown => Neither,
-      LastDirLeftRight => Neither,
-      CurDirUpDown => Neither,
-      CurDirLeftRight => Neither,
+      last => (others => (others => 0.0)),
+      cur => (others => (others => 0.0)),
       translations => default_keyboard_translation,
       optional_joystick_handle => new Opt_Joy_Handle(J => No_Joy)
     );
@@ -136,11 +169,69 @@ procedure Fighting_Game_Ada is
           )
         );
         menu_index : Natural := 0;
-        menu_move_sound : access ALLEGRO_SAMPLE := al_load_sample(New_String("assets/menu_move_pop.flac"));
-      when Character_Select =>
-        null;
       when Stage_Select =>
-        null;
+        stage_entries : access Menu_Entry_Array := new Menu_Entry_Array'(Menu_Entries_Connect_Gridwise(
+        Menu_Entry_Array'(
+          0 => Menu_Entry'(
+            operation => Choose_Stage'Access,
+            text => new String'(Stage_Name(Test1)),
+            offset => Position'(X => 100.0, Y => 100.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          ),
+          1 => Menu_Entry'(
+            operation => Choose_Stage'Access,
+            text => new String'(Stage_Name(Test2)),
+            offset => Position'(X => 180.0, Y => 100.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          )
+        ),
+        stage_select_row_count));
+        stage_icons : access Icon_Array := new Icon_Array'(
+          0 => Icon'(bitmap => Stage_Icon(Test1)),
+          1 => Icon'(bitmap => Stage_Icon(Test2))
+        );
+        p1_stage_index : Natural := 0;
+        stage_select_background : access ALLEGRO_BITMAP := al_load_bitmap(New_String(stage_select_background_path));
+        stage_selector_player_one : access ALLEGRO_BITMAP := al_load_bitmap(New_String(selection_cursor_player_one_path));
+      when Character_Select =>
+        char_entries : access Menu_Entry_Array := new Menu_Entry_Array'(Menu_Entries_Connect_Gridwise(
+        Menu_Entry_Array'(
+          0 => Menu_Entry'(
+            operation => Choose_Character'Access,
+            text => new String'(Fighter_Name(Shambler)),
+            offset => Position'(X => 100.0, Y => 100.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          ),
+          1 => Menu_Entry'(
+            operation => Choose_Character'Access,
+            text => new String'(Fighter_Name(Test)),
+            offset => Position'(X => 180.0, Y => 100.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          )
+        ),
+        char_select_row_count));
+        char_icons : access Icon_Array := new Icon_Array'(
+          0 => Icon'(bitmap => Fighter_Icon(Shambler)),
+          1 => Icon'(bitmap => Fighter_Icon(Test))
+        );
+        p1_char_index : Natural := 0;
+        p2_char_index : Natural := 0;
+        choosen_stage : Stage_Options;
+        char_select_background : access ALLEGRO_BITMAP := al_load_bitmap(New_String(char_select_background_path));
+        char_selector_player_one : access ALLEGRO_BITMAP := al_load_bitmap(New_String(selection_cursor_player_one_path));
+        char_selector_player_two : access ALLEGRO_BITMAP := al_load_bitmap(New_String(selection_cursor_player_two_path));
       when Battle =>
         player_one : Fighter.Fighter;
         player_two : Fighter.Fighter;
@@ -175,7 +266,12 @@ procedure Fighting_Game_Ada is
   title_transition_move_y_amount : constant Scalar := 2.0;
   menu_text_zoom : constant Float := 2.0;
   menu_selected_text_x_offset : constant Float := -5.0;
-  menu_sound_path : String := "assets/menu_move_pop.flac";
+  menu_sound_path : constant String := "assets/menu_move_pop.flac";
+  player_assign_background_path : constant String := "assets/player_assign_background.png";
+  player_assign_controller_icon_path : constant String := "assets/controller_icon.png";
+  player_assign_keyboard_icon_path : constant String := "assets/keyboard_icon.png";
+  player_assign_player_one_path : constant String := "assets/assignment_player_one.png";
+  player_assign_player_two_path : constant String := "assets/assignment_player_two.png";
   
   frame_start_time : Time := Clock;
   Color_Black : ALLEGRO_COLOR;
@@ -186,6 +282,11 @@ procedure Fighting_Game_Ada is
   Unselected_Text_Color : ALLEGRO_COLOR;
   Selected_Text_Color : ALLEGRO_COLOR;
   menu_move_sound : access ALLEGRO_SAMPLE;
+  player_assign_background_bitmap: access ALLEGRO_BITMAP;
+  player_assign_controller_icon_bitmap : access ALLEGRO_BITMAP;
+  player_assign_keyboard_icon_bitmap : access ALLEGRO_BITMAP;
+  player_assign_player_one_icon_bitmap : access ALLEGRO_BITMAP;
+  player_assign_player_two_icon_bitmap : access ALLEGRO_BITMAP;
   
   Allegro_Initialization_Failure : exception;
   
@@ -196,15 +297,57 @@ procedure Fighting_Game_Ada is
   JoyEventSrc : access ALLEGRO_EVENT_SOURCE;
   Ev : access ALLEGRO_EVENT := new ALLEGRO_EVENT;
   
+  procedure Game_State_Pass_Player_Inputs (Old_GS : access Game_State_Data; New_GS : access Game_State_Data) is
+  begin
+    New_GS.p1_connected := Old_GS.p1_connected;
+    New_GS.p2_connected := Old_GS.p2_connected;
+    New_GS.p1_input_state := Old_GS.p1_input_state;
+    New_GS.p2_input_state := Old_GS.p2_input_state;
+  end Game_State_Pass_Player_Inputs;
+  
   procedure Main_Menu_Go_To_Verses is
   begin
-    state := new Game_State_Data(Character_Select);
+    Go_To_Stage_Select:
+      declare
+        temp_state : access Game_State_Data := state;
+      begin
+        state := new Game_State_Data(Stage_Select);
+        Game_State_Pass_Player_Inputs(temp_state, state);
+      end Go_To_Stage_Select;
   end Main_Menu_Go_To_Verses;
   
   procedure Main_Menu_Quit_Game is
   begin
     state.should_exit := true;
   end Main_Menu_Quit_Game;
+  
+  procedure Choose_Stage is
+  begin
+    Go_To_Character_Select:
+      declare
+        temp_state : access Game_State_Data := state;
+      begin
+        state := new Game_State_Data(Character_Select);
+        state.choosen_stage := Stage_Options'Val(temp_state.p1_stage_index);
+        Game_State_Pass_Player_Inputs(temp_state, state);
+      end Go_To_Character_Select;
+  end Choose_Stage;
+  
+  procedure Choose_Character is
+  begin
+    Go_To_Battle:
+      declare
+        temp_state : access Game_State_Data := state;
+      begin
+        state := new Game_State_Data(Battle);
+        state.player_one := Load_Fighter(Fighter_Options'Val(temp_state.p1_char_index));
+        state.player_two := Load_Fighter(Fighter_Options'Val(temp_state.p2_char_index));
+        state.stage := Load_Stage(temp_state.choosen_stage);
+        state.player_one.pos := Position'(200.0, 400.0);
+        state.player_two.pos := Position'(600.0, 400.0);
+        Game_State_Pass_Player_Inputs(temp_state, state);
+      end Go_To_Battle;
+  end Choose_Character;
   
   procedure feet_touches_floor (F : in out Fighter.Fighter) is
   begin
@@ -361,22 +504,55 @@ procedure Fighting_Game_Ada is
       end if;
     end if;
   end Set_Players_Blocking;
+    
+  procedure Open_Assignment_Screen is
+  begin
+    state.player_assignment_screen_open := true;
+    state.player_connected_slot_one := false;
+    state.player_connected_slot_two := false;
+    state.p1_connected := false;
+    state.p2_connected := false;
+  end Open_Assignment_Screen;
+    
+  procedure Exit_Assignment_Screen is
+    procedure Slot_To_Player (GIS : Game_Input_State; slot : Player_Assignment_Slot) is
+    begin
+      case slot is
+        when P1 =>
+          state.p1_input_state := GIS;
+          state.p1_connected := true;
+        when P2 =>
+          state.p2_input_state := GIS;
+          state.p2_connected := true;
+        when others =>
+          null;
+      end case;
+    end Slot_To_Player;
+  begin
+    if state.player_connected_slot_one then
+      Slot_To_Player(state.player_input_state_slot_one, state.player_assignment_slot_one);
+    end if;
+    
+    if state.player_connected_slot_two then
+      Slot_To_Player(state.player_input_state_slot_two, state.player_assignment_slot_two);
+    end if;
+    
+    state.player_assignment_screen_open := false;
+  end Exit_Assignment_Screen;
   
   procedure State_Input_Step is
-    procedure Connect_Player (tran : access Game_Input_Translations; ojh : access Opt_Joy_Handle) is
+    procedure Connect_Player (tran : access Game_Input_Translations; ojh : Opt_Joy_Handle_Access) is
     begin
       state.player_assignment_slot_one := state.player_assignment_slot_two;
       state.player_connected_slot_one := state.player_connected_slot_two;
-      if state.player_connected_slot_one then
+      if state.player_connected_slot_two then
         state.player_input_state_slot_one := state.player_input_state_slot_two;
       end if;
       state.player_assignment_slot_two := Middle;
       state.player_connected_slot_two := true;
       state.player_input_state_slot_two := Game_Input_State'(
-        LastDirUpDown => Neither,
-        LastDirLeftRight => Neither,
-        CurDirUpDown => Neither,
-        CurDirLeftRight => Neither,
+        last => (others => (others => 0.0)),
+        cur => (others => (others => 0.0)),
         translations => tran,
         optional_joystick_handle => ojh
       );
@@ -411,41 +587,6 @@ procedure Fighting_Game_Ada is
       end case;
     end Move_Slot;
     
-    procedure Open_Assignment_Screen is
-    begin
-      state.player_assignment_screen_open := true;
-      state.player_connected_slot_one := false;
-      state.player_connected_slot_two := false;
-      state.p1_connected := false;
-      state.p2_connected := false;
-    end Open_Assignment_Screen;
-    
-    procedure Exit_Assignment_Screen is
-      procedure Slot_To_Player (GIS : Game_Input_State; slot : Player_Assignment_Slot) is
-      begin
-        case slot is
-          when P1 =>
-            state.p1_input_state := GIS;
-            state.p1_connected := true;
-          when P2 =>
-            state.p2_input_state := GIS;
-            state.p2_connected := true;
-          when others =>
-            null;
-        end case;
-      end Slot_To_Player;
-    begin
-      if state.player_connected_slot_one then
-        Slot_To_Player(state.player_input_state_slot_one, state.player_assignment_slot_one);
-      end if;
-      
-      if state.player_connected_slot_two then
-        Slot_To_Player(state.player_input_state_slot_two, state.player_assignment_slot_two);
-      end if;
-      
-      state.player_assignment_screen_open := false;
-    end Exit_Assignment_Screen;
-    
     procedure Refresh_Last_If_Connected (connected : Boolean; GIS : in out Game_Input_State) is
     begin
       if connected then
@@ -468,56 +609,74 @@ procedure Fighting_Game_Ada is
       case Ev.c_type is
         when 42 =>-- code for display getting closed
           state.should_exit := true;
-        when 4 =>
-          Reconfigure_Joys:
-            declare
-              config_changed : Boolean;
-            begin
-              config_changed := Boolean(al_reconfigure_joysticks);
-            end Reconfigure_Joys;
         when others =>
+          if Ev.c_type = 4 then
+            Reconfigure_Joys:
+              declare
+                config_changed : Boolean;
+              begin
+                config_changed := Boolean(al_reconfigure_joysticks);
+              end Reconfigure_Joys;
+          end if;
+          
           if state.player_assignment_screen_open then
-            case Ev.c_type is
-              when 10 =>-- key down
-                case Ev.keyboard.keycode is
-                  when 67 =>-- enter
-                    Connect_Player(default_keyboard_translation, new Opt_Joy_Handle(J => No_Joy));
-                  when others =>
-                    null;
-                end case;
-              when 2 =>-- joystick button down
-                case Ev.joystick.button is
-                  when 1 =>-- Need to experiment to find start button (could print it here)
-                    Connect_Player(default_joystick_translation, new Opt_Joy_Handle'(J => Joy, handle => Ev.joystick.source));
-                  when others =>
-                    null;
-                end case;
-              when others =>
-                null;
-            end case;
-            
-            -- needs to move left/right to select player number
-            if Input_Recognized(Ev, state.player_input_state_slot_one, Left_Press) then
-              Move_Slot(Slot1, Left);
-            end if;
-            if Input_Recognized(Ev, state.player_input_state_slot_one, Right_Press) then
-              Move_Slot(Slot1, Right);
-            end if;
-            if Input_Recognized(Ev, state.player_input_state_slot_one, Start_Press) then
-              Exit_Assignment_Screen;
-            end if;
-            if Input_Recognized(Ev, state.player_input_state_slot_two, Left_Press) then
-              Move_Slot(Slot2, Left);
-            end if;
-            if Input_Recognized(Ev, state.player_input_state_slot_two, Right_Press) then
-              Move_Slot(Slot2, Right);
-            end if;
-            if Input_Recognized(Ev, state.player_input_state_slot_two, Start_Press) then
-              Exit_Assignment_Screen;
-            end if;
+            Assignment_Screen_Input:
+              declare
+                input_caught_by_slot : Boolean := state.player_connected_slot_one or state.player_connected_slot_two;
+              begin
+                -- needs to move left/right to select player number
+                if state.player_connected_slot_one then
+                  if Input_Recognized(Ev, state.player_input_state_slot_one, Left_Press) then
+                    Move_Slot(Slot1, Left);
+                  elsif Input_Recognized(Ev, state.player_input_state_slot_one, Right_Press) then
+                    Move_Slot(Slot1, Right);
+                  elsif Input_Recognized(Ev, state.player_input_state_slot_one, Start_Press) then
+                    Exit_Assignment_Screen;
+                  else
+                    input_caught_by_slot := false;
+                  end if;
+                end if;
+                
+                if state.player_connected_slot_two then
+                  if Input_Recognized(Ev, state.player_input_state_slot_two, Left_Press) then
+                    Move_Slot(Slot2, Left);
+                  elsif Input_Recognized(Ev, state.player_input_state_slot_two, Right_Press) then
+                    Move_Slot(Slot2, Right);
+                  elsif Input_Recognized(Ev, state.player_input_state_slot_two, Start_Press) then
+                    Exit_Assignment_Screen;
+                  else
+                    input_caught_by_slot := false;
+                  end if;
+                end if;
+                
+                if not input_caught_by_slot then
+                  case Ev.c_type is
+                    when 10 =>-- key down
+                      case Ev.keyboard.keycode is
+                        when 67 =>-- enter
+                          Connect_Player(default_keyboard_translation, new Opt_Joy_Handle(J => No_Joy));
+                        when others =>
+                          null;
+                      end case;
+                    when 2 =>-- joystick button down
+                      case Ev.joystick.button is
+                        when 7 =>-- start button
+                          Connect_Player(default_joystick_translation, new Opt_Joy_Handle'(J => Joy, handle => Ev.joystick.source));
+                        when others =>
+                          null;
+                      end case;
+                    when others =>
+                      null;
+                  end case;
+                end if;
+              end Assignment_Screen_Input;
           else
             case state.GS is
               when Title =>
+                if Ev.c_type = 4 then
+                  Open_Assignment_Screen;
+                end if;
+                
                 if Input_Recognized(Ev, state.p1_input_state, Start_Press) then
                   if state.ts /= Start_Transition_To_Menu then
                     state.ts := Start_Transition_To_Menu;
@@ -526,6 +685,10 @@ procedure Fighting_Game_Ada is
                   end if;
                 end if;
               when Menu =>
+                if Ev.c_type = 4 then
+                  Open_Assignment_Screen;
+                end if;
+                
                 MenuInput:
                   declare
                     procedure Play_Move_Sound is
@@ -535,7 +698,7 @@ procedure Fighting_Game_Ada is
                       played_successfully := Boolean(al_play_sample(menu_move_sound, 1.0, 0.0, 1.0, ALLEGRO_PLAYMODE_ONCE, sid));
                     end Play_Move_Sound;
                     
-                    procedure Menu_Input_For_Player (Player_Connected : Boolean; Player_GIS : in out Game_Input_State) is
+                    procedure Menu_Input_For_Player (Player_Connected : Boolean; Player_GIS : Game_Input_State) is
                     begin
                       if Player_Connected then
                         if Input_Recognized(Ev, Player_GIS, Up_Press) then
@@ -563,70 +726,108 @@ procedure Fighting_Game_Ada is
                     Menu_Input_For_Player(state.p1_connected, state.p1_input_state);
                     Menu_Input_For_Player(state.p2_connected, state.p2_input_state);
                   end MenuInput;
-              when Character_Select =>
-                null;
               when Stage_Select =>
-                null;
+                if Input_Recognized(Ev, state.p1_input_state, Up_Press) then
+                  state.p1_stage_index := Menu_Move(state.stage_entries.all, state.p1_stage_index, Up);
+                elsif Input_Recognized(Ev, state.p1_input_state, Down_Press) then
+                  state.p1_stage_index := Menu_Move(state.stage_entries.all, state.p1_stage_index, Down);
+                elsif Input_Recognized(Ev, state.p1_input_state, Left_Press) then
+                  state.p1_stage_index := Menu_Move(state.stage_entries.all, state.p1_stage_index, Left);
+                elsif Input_Recognized(Ev, state.p1_input_state, Right_Press) then
+                  state.p1_stage_index := Menu_Move(state.stage_entries.all, state.p1_stage_index, Right);
+                end if;
+                
+                if Input_Recognized(Ev, state.p1_input_state, Attack_1_Press) then
+                  Menu_Select_Entry(state.stage_entries.all, state.p1_stage_index);
+                end if;
+              when Character_Select =>
+                Char_Select_Input:
+                  declare
+                    procedure Player_Char_Select_Input (GIS : Game_Input_State; menu : access Menu_Entry_Array; menu_index : in out Natural) is
+                    begin
+                      if Input_Recognized(Ev, GIS, Up_Press) then
+                        menu_index := Menu_Move(menu.all, menu_index, Up);
+                      elsif Input_Recognized(Ev, GIS, Down_Press) then
+                        menu_index := Menu_Move(menu.all, menu_index, Down);
+                      elsif Input_Recognized(Ev, GIS, Left_Press) then
+                        menu_index := Menu_Move(menu.all, menu_index, Left);
+                      elsif Input_Recognized(Ev, GIS, Right_Press) then
+                        menu_index := Menu_Move(menu.all, menu_index, Right);
+                      end if;
+                      
+                      if Input_Recognized(Ev, GIS, Attack_1_Press) then
+                        Menu_Select_Entry(menu.all, menu_index);
+                      end if;
+                    end Player_Char_Select_Input;
+                  begin
+                    Player_Char_Select_Input(state.p1_input_state, state.char_entries, state.p1_char_index);
+                    if state.GS = Character_Select then
+                      Player_Char_Select_Input(state.p2_input_state, state.char_entries, state.p2_char_index);
+                    end if;
+                  end Char_Select_Input;
               when Battle =>
-                case Ev.c_type is
-                  when 10 => -- key down
-                    case Ev.keyboard.keycode is
-                      when 23 =>-- w
-                        Fighter.Press_Input(state.player_one, Globals.up, state.frame);
-                      when 1 =>-- a
-                        Fighter.Press_Input(state.player_one, Globals.left, state.frame);
-                      when 19 =>-- s
-                        Fighter.Press_Input(state.player_one, Globals.down, state.frame);
-                      when 4 =>-- d
-                        Fighter.Press_Input(state.player_one, Globals.right, state.frame);
-                      when 21 =>-- u
-                        Fighter.Press_Input(state.player_one, Globals.atk_1, state.frame);
-                      when 9 =>-- i
-                        Fighter.Press_Input(state.player_one, Globals.atk_2, state.frame);
-                      when 15 =>-- o
-                        Fighter.Press_Input(state.player_one, Globals.atk_3, state.frame);
-                      when 10 =>-- j
-                        Fighter.Press_Input(state.player_one, Globals.atk_4, state.frame);
-                      when 11 =>-- k
-                        Fighter.Press_Input(state.player_one, Globals.atk_5, state.frame);
-                      when 12 =>-- l
-                        Fighter.Press_Input(state.player_one, Globals.atk_6, state.frame);
-                      when 59 =>-- esc
-                        null;-- use this for a pause menu later
-                      when 75 =>-- spacebar
-                        state.player_one.show_hitboxes := not state.player_one.show_hitboxes;
-                        state.player_two.show_hitboxes := not state.player_two.show_hitboxes;
-                      when others =>
-                        null;
-                    end case;
-                  when 12 => -- key up
-                    case Ev.keyboard.keycode is
-                      when 23 =>-- w
-                        Fighter.Release_Input(state.player_one, Globals.up, state.frame);
-                      when 1 =>-- a
-                        Fighter.Release_Input(state.player_one, Globals.left, state.frame);
-                      when 19 =>-- s
-                        Fighter.Release_Input(state.player_one, Globals.down, state.frame);
-                      when 4 =>-- d
-                        Fighter.Release_Input(state.player_one, Globals.right, state.frame);
-                      when 21 =>-- u
-                        Fighter.Release_Input(state.player_one, Globals.atk_1, state.frame);
-                      when 9 =>-- i
-                        Fighter.Release_Input(state.player_one, Globals.atk_2, state.frame);
-                      when 15 =>-- o
-                        Fighter.Release_Input(state.player_one, Globals.atk_3, state.frame);
-                      when 10 =>-- j
-                        Fighter.Release_Input(state.player_one, Globals.atk_4, state.frame);
-                      when 11 =>-- k
-                        Fighter.Release_Input(state.player_one, Globals.atk_5, state.frame);
-                      when 12 =>-- l
-                        Fighter.Release_Input(state.player_one, Globals.atk_6, state.frame);
-                      when others =>
-                        null;
-                    end case;
-                  when others =>
-                    null;
-                end case;
+                Battle_Input_Step:
+                  declare
+                    procedure Player_Battle_Input (GIS : Game_Input_State; F : in out Fighter.Fighter) is
+                    begin
+                      if Input_Recognized(Ev, GIS, Up_Press) then
+                        Fighter.Press_Input(F, Globals.up, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Left_Press) then
+                        Fighter.Press_Input(F, Globals.left, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Down_Press) then
+                        Fighter.Press_Input(F, Globals.down, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Right_Press) then
+                        Fighter.Press_Input(F, Globals.right, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_1_Press) then
+                        Fighter.Press_Input(F, Globals.atk_1, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_2_Press) then
+                        Fighter.Press_Input(F, Globals.atk_2, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_3_Press) then
+                        Fighter.Press_Input(F, Globals.atk_3, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_4_Press) then
+                        Fighter.Press_Input(F, Globals.atk_4, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_5_Press) then
+                        Fighter.Press_Input(F, Globals.atk_5, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_6_Press) then
+                        Fighter.Press_Input(F, Globals.atk_6, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Start_Press) then
+                        F.show_hitboxes := not F.show_hitboxes;
+                      end if;
+                      
+                      if Input_Recognized(Ev, GIS, Up_Release) then
+                        Fighter.Release_Input(F, Globals.up, state.frame);
+                      end if;
+                      
+                      if Input_Recognized(Ev, GIS, Left_Release) then
+                        Fighter.Release_Input(F, Globals.left, state.frame);
+                      end if;
+                      
+                      if Input_Recognized(Ev, GIS, Down_Release) then
+                        Fighter.Release_Input(F, Globals.down, state.frame);
+                      end if;
+                      
+                      if Input_Recognized(Ev, GIS, Right_Release) then
+                        Fighter.Release_Input(F, Globals.right, state.frame);
+                      end if;
+                      
+                      if Input_Recognized(Ev, GIS, Attack_1_Release) then
+                        Fighter.Release_Input(F, Globals.atk_1, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_2_Release) then
+                        Fighter.Release_Input(F, Globals.atk_2, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_3_Release) then
+                        Fighter.Release_Input(F, Globals.atk_3, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_4_Release) then
+                        Fighter.Release_Input(F, Globals.atk_4, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_5_Release) then
+                        Fighter.Release_Input(F, Globals.atk_5, state.frame);
+                      elsif Input_Recognized(Ev, GIS, Attack_6_Release) then
+                        Fighter.Release_Input(F, Globals.atk_6, state.frame);
+                      end if;
+                    end Player_Battle_Input;
+                  begin
+                    Player_Battle_Input(state.p1_input_state, state.player_one);
+                    Player_Battle_Input(state.p2_input_state, state.player_two);
+                  end Battle_Input_Step;
               when Battle_Over =>
                 null;
             end case;
@@ -643,7 +844,42 @@ procedure Fighting_Game_Ada is
     al_clear_to_color(Color_Black);
     
     if state.player_assignment_screen_open then
-      null;
+      al_draw_bitmap(player_assign_background_bitmap, 0.0, 0.0, 0);
+      
+      Draw_Slot_Icons:
+        declare
+          function Icon_X_Offset (Slot : Player_Assignment_Slot) return Float is
+          begin
+            case Slot is
+              when P1 =>
+                return Float(half_screen_width - 360.0);
+              when Middle =>
+                return Float(half_screen_width - 100.0);
+              when P2 =>
+                return Float(half_screen_width + 160.0);
+            end case;
+          end Icon_X_Offset;
+          
+          function Icon_Bitmap (GIS : Game_Input_State) return access ALLEGRO_BITMAP is
+          begin
+            if GIS.optional_joystick_handle.J = Joy then
+              return player_assign_controller_icon_bitmap;
+            else
+              return player_assign_keyboard_icon_bitmap;
+            end if;
+          end Icon_Bitmap;
+          
+        begin
+          al_draw_bitmap(player_assign_player_one_icon_bitmap, 90.0, 30.0, 0);
+          al_draw_bitmap(player_assign_player_two_icon_bitmap, 600.0, 30.0, 0);
+          if state.player_connected_slot_one then
+            al_draw_bitmap(Icon_Bitmap(state.player_input_state_slot_one), Icon_X_Offset(state.player_assignment_slot_one), 80.0, 0);
+          end if;
+          
+          if state.player_connected_slot_two then
+            al_draw_bitmap(Icon_Bitmap(state.player_input_state_slot_two), Icon_X_Offset(state.player_assignment_slot_two), 320.0, 0);
+          end if;
+        end Draw_Slot_Icons;
     else
       case state.GS is
         when Title =>
@@ -695,10 +931,25 @@ procedure Fighting_Game_Ada is
           
           al_identity_transform(transform);
           al_use_transform(transform);
-        when Character_Select =>
-          null;
         when Stage_Select =>
-          null;
+          al_draw_bitmap(state.stage_select_background, 0.0, 0.0, 0);
+          
+          for I in state.stage_icons'Range loop
+            al_draw_bitmap(state.stage_icons(I).bitmap, Float(state.stage_entries(I).offset.X), Float(state.stage_entries(I).offset.Y), 0);
+            al_draw_text(basic_font, Text_Color, Float(state.stage_entries(I).offset.X), Float(state.stage_entries(I).offset.Y + 68.0), 0, New_String(state.stage_entries(I).text.all));
+          end loop;
+          
+          al_draw_bitmap(state.stage_selector_player_one, Float(state.stage_entries(state.p1_stage_index).offset.X), Float(state.stage_entries(state.p1_stage_index).offset.Y), 0);
+        when Character_Select =>
+          al_draw_bitmap(state.char_select_background, 0.0, 0.0, 0);
+          
+          for I in state.char_icons'Range loop
+            al_draw_bitmap(state.char_icons(I).bitmap, Float(state.char_entries(I).offset.X), Float(state.char_entries(I).offset.Y), 0);
+            al_draw_text(basic_font, Text_Color, Float(state.char_entries(I).offset.X), Float(state.char_entries(I).offset.Y + 68.0), 0, New_String(state.char_entries(I).text.all));
+          end loop;
+          
+          al_draw_bitmap(state.char_selector_player_one, Float(state.char_entries(state.p1_char_index).offset.X), Float(state.char_entries(state.p1_char_index).offset.Y), 0);
+          al_draw_bitmap(state.char_selector_player_two, Float(state.char_entries(state.p2_char_index).offset.X), Float(state.char_entries(state.p2_char_index).offset.Y), 0);
         when Battle =>
           al_identity_transform(transform);
           al_translate_transform(transform, Float(state.camera_pos.X), Float(state.camera_pos.Y));
@@ -759,6 +1010,12 @@ begin
     state.logo_x := 140.0;
     state.logo_y := -90.0;
     
+    player_assign_background_bitmap := al_load_bitmap(New_String(player_assign_background_path));
+    player_assign_controller_icon_bitmap := al_load_bitmap(New_String(player_assign_controller_icon_path));
+    player_assign_keyboard_icon_bitmap := al_load_bitmap(New_String(player_assign_keyboard_icon_path));
+    player_assign_player_one_icon_bitmap := al_load_bitmap(New_String(player_assign_player_one_path));
+    player_assign_player_two_icon_bitmap := al_load_bitmap(New_String(player_assign_player_two_path));
+    
     loop
       frame_start_time := Clock;
       
@@ -794,19 +1051,20 @@ begin
                 end if;
               when Start_Transition_To_Menu =>
                 if state.frame >= title_transition_to_menu_title_slide_frames then
-                  PassOnBitmaps:
+                  PassOnData:
                     declare
-                      temp_background : access ALLEGRO_BITMAP := state.tbackground;
-                      temp_logo : access ALLEGRO_BITMAP := state.tlogo;
-                      temp_scale : Scalar := state.logo_scale;
-                      temp_pos : Position := Position'(X => state.logo_x, Y => state.logo_y);
+                      temp_state : access Game_State_Data := state;
                     begin
                       state := new Game_State_Data(Menu);
-                      state.mbackground := temp_background;
-                      state.mlogo := temp_logo;
-                      state.mlogo_scale := temp_scale;
-                      state.mlogo_pos := temp_pos;
-                    end PassOnBitmaps;
+                      state.mbackground := temp_state.tbackground;
+                      state.mlogo := temp_state.tlogo;
+                      state.mlogo_scale := temp_state.logo_scale;
+                      state.mlogo_pos := Position'(X => temp_state.logo_x, Y => temp_state.logo_y);
+                      state.p1_connected := temp_state.p1_connected;
+                      state.p2_connected := temp_state.p2_connected;
+                      state.p1_input_state := temp_state.p1_input_state;
+                      state.p2_input_state := temp_state.p2_input_state;
+                    end PassOnData;
                 else
                   state.logo_scale := state.logo_scale + title_transition_scale_amount;
                   state.logo_x := state.logo_x + title_transition_move_x_amount;
@@ -823,10 +1081,14 @@ begin
             end if;
           when Menu =>
             null;
-          when Character_Select =>
-            null;
           when Stage_Select =>
-            null;
+            if (not state.p1_connected) or (not state.p2_connected) then
+              Open_Assignment_Screen;
+            end if;
+          when Character_Select =>
+            if (not state.p1_connected) or (not state.p2_connected) then
+              Open_Assignment_Screen;
+            end if;
           when Battle =>
             if (state.player_one.pos.X + state.player_one.sprite_offset.X) < (state.player_two.pos.X + state.player_two.sprite_offset.X) then
               if not state.player_one.facing_right and state.player_one.on_ground and not (state.player_one.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_one.inputs) then

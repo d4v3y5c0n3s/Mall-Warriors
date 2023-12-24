@@ -13,4 +13,8 @@ package Stage_Data is
   
   function Load_Stage (S : Stage_Options) return Stage_Assets;
   
+  function Stage_Name (S : Stage_Options) return String;
+  
+  function Stage_Icon (S : Stage_Options) return access ALLEGRO_BITMAP;
+  
 end Stage_Data;

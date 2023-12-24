@@ -252,4 +252,14 @@ package body Fighter_Data is
     
     return data;
   end Load_Fighter;
+  
+  function Fighter_Name (F : Fighter_Options) return String is
+  begin
+    return F'Image;
+  end Fighter_Name;
+  
+  function Fighter_Icon (F : Fighter_Options) return access ALLEGRO_BITMAP is
+  begin
+    return al_load_bitmap(New_String("assets/temp_stage_char_icon.png"));
+  end Fighter_Icon;
 end Fighter_Data;

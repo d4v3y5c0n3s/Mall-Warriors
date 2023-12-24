@@ -39,7 +39,7 @@ package Fighter is
   
   type Move_Steps_Collection is array(Natural range <>) of Move.Move_Step_Array_Access;
 
-  type Fighter is tagged record
+  type Fighter is record
     inputs : Inputs_List.List;
     tree_of_move_inputs : Input_Tree.Tree;
     moves : Moves_Collection_Access := new Moves_Collection(0 .. 32);
