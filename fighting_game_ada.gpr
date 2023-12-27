@@ -1,7 +1,17 @@
 with "config/fighting_game_ada_config.gpr";
 project Fighting_Game_Ada is
 
-   for Source_Dirs use ("src/", "config/", "allegro_binding_src/");
+   Source_Directories := ("src/", "config/", "allegro_binding_src/");
+   case Fighting_Game_Ada_Config.Alire_Host_OS is
+    when "linux" =>
+      Source_Directories := Source_Directories & ("linux_src");
+    when "windows" =>
+      Source_Directories := Source_Directories & ("windows_src");
+    when others =>
+      null;
+   end case;
+   
+   for Source_Dirs use Source_Directories;
    for Object_Dir use "obj/" & Fighting_Game_Ada_Config.Build_Profile;
    for Create_Missing_Dirs use "True";
    for Exec_Dir use "bin";

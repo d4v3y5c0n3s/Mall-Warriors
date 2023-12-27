@@ -660,7 +660,7 @@ procedure Fighting_Game_Ada is
                       end case;
                     when 2 =>-- joystick button down
                       case Ev.joystick.button is
-                        when 7 =>-- start button
+                        when controller_start_id =>-- start button
                           Connect_Player(default_joystick_translation, new Opt_Joy_Handle'(J => Joy, handle => Ev.joystick.source));
                         when others =>
                           null;
