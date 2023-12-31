@@ -14,8 +14,8 @@ package body Stage_Data is
         bitmap_path := new String'("assets/colorful_stage.png");
         music_path := new String'("assets/test_music.ogg");
       when Test2 =>
-        bitmap_path := new String'("");
-        music_path := new String'("");
+        bitmap_path := new String'("assets/colorful_stage.png");
+        music_path := new String'("assets/test_music.ogg");
     end case;
     
     stage.background := al_load_bitmap(New_String(bitmap_path.all));

@@ -272,6 +272,8 @@ procedure Fighting_Game_Ada is
   player_assign_keyboard_icon_path : constant String := "assets/keyboard_icon.png";
   player_assign_player_one_path : constant String := "assets/assignment_player_one.png";
   player_assign_player_two_path : constant String := "assets/assignment_player_two.png";
+  camera_scroll_threshold : constant Scalar := half_screen_width / 2.0;
+  camera_scroll_amount : constant Scalar := 1.0;
   
   frame_start_time : Time := Clock;
   Color_Black : ALLEGRO_COLOR;
@@ -1241,14 +1243,24 @@ begin
             -- move camera here
             MoveCamera:
               declare
-                midpoint : constant Scalar := (Scalar((state.player_one.pos.X - state.player_two.pos.X) / 2.0) + 200.0) * (-1.0);
+                cam_middle_relative_to_players : constant Scalar := -(state.camera_pos.X - half_screen_width);
+                left_threshold : constant Scalar := cam_middle_relative_to_players - camera_scroll_threshold;
+                right_threshold : constant Scalar := cam_middle_relative_to_players + camera_scroll_threshold;
+                left_threshold_passed : constant Boolean := (state.player_one.pos.X <= left_threshold) or (state.player_two.pos.X <= left_threshold);
+                right_threshold_passed : constant Boolean := (state.player_one.pos.X >= right_threshold) or (state.player_two.pos.X >= right_threshold);
               begin
-                if midpoint < (-(half_stage_width) + half_screen_width) then
+                if (state.camera_pos.X - half_screen_width) <= -(half_stage_width) then
                   state.camera_pos.X := -(half_stage_width) + half_screen_width;
-                elsif midpoint > (half_stage_width - half_screen_width) then
+                elsif (state.camera_pos.X + half_screen_width) >= half_stage_width then
                   state.camera_pos.X := half_stage_width - half_screen_width;
                 else
-                  state.camera_pos.X := midpoint;
+                  if not (left_threshold_passed and right_threshold_passed) then
+                    if left_threshold_passed then
+                      state.camera_pos.X := state.camera_pos.X + camera_scroll_amount;
+                    elsif right_threshold_passed then
+                      state.camera_pos.X := state.camera_pos.X - camera_scroll_amount;
+                    end if;
+                  end if;
                 end if;
               end MoveCamera;
             
