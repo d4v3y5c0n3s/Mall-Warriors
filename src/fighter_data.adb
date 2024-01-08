@@ -262,4 +262,24 @@ package body Fighter_Data is
   begin
     return al_load_bitmap(New_String("assets/temp_stage_char_icon.png"));
   end Fighter_Icon;
+  
+  function Fighter_Move_Names (F : Fighter_Options) return Fighter_Move_Name_Array is
+  begin
+    case F is
+      when Shambler =>
+        return Fighter_Move_Name_Array'(0 => Fighter_Move_Name'(new String'("None lol")));
+      when Test =>
+        return Fighter_Move_Name_Array'(Fighter_Move_Name'(new String'("Beeeep")), Fighter_Move_Name'(new String'("Useless Hop")));
+    end case;
+  end Fighter_Move_Names;
+  
+  function Fighter_Move_Indexes (F : Fighter_Options) return Fighter_Move_Index_Array is
+  begin
+    case F is
+      when Shambler =>
+        return Fighter_Move_Index_Array'(0 => 0);
+      when Test =>
+        return Fighter_Move_Index_Array'(1, 2);
+    end case;
+  end Fighter_Move_Indexes;
 end Fighter_Data;

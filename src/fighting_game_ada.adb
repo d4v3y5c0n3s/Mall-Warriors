@@ -26,6 +26,8 @@ with Cool_Math; use Cool_Math;
 with Stage_Data; use Stage_Data;
 with Fighter_Data; use Fighter_Data;
 with Control_Bindings; use Control_Bindings;
+with Move;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 
 procedure Fighting_Game_Ada is
   
@@ -88,6 +90,29 @@ procedure Fighting_Game_Ada is
     return ret;
   end Menu_Entries_Connect_Gridwise;
   
+  procedure Empty_Proc is
+  begin
+    null;
+  end Empty_Proc;
+  
+  function Menu_Entries_For_Moves (chosen : Fighter_Options) return Menu_Entry_Array is
+    move_names : constant Fighter_Move_Name_Array := Fighter_Move_Names(chosen);
+    ret : Menu_Entry_Array(move_names'Range);
+    last_y : Scalar := 10.0;
+    me : Menu_Entry;
+  begin
+    for I in ret'Range loop
+      me := ret(I);
+      me.operation := Empty_Proc'Access;
+      me.text := new String'(move_names(I).all);
+      me.offset.Y := last_y + 30.0;
+      last_y := me.offset.Y;
+      ret(I) := me;
+    end loop;
+    
+    return ret;
+  end Menu_Entries_For_Moves;
+  
   procedure Main_Menu_Go_To_Verses;
   procedure Main_Menu_Quit_Game;
   
@@ -101,11 +126,19 @@ procedure Fighting_Game_Ada is
   char_select_background_path : constant String := "assets/character_select_background.png";
   selection_cursor_player_one_path : constant String := "assets/selector_player_one.png";
   selection_cursor_player_two_path : constant String := "assets/selector_player_two.png";
+  battle_round_begin_bitmap_path : constant String := "assets/round_begin_countdown.png";
+  victory_bitmap_path : constant String := "assets/victory.png";
   
   type Icon is record
     bitmap : access ALLEGRO_BITMAP;
   end record;
   type Icon_Array is array(Natural range <>) of Icon;
+  
+  type Battle_Sequence is (None, Intro, Round_Start, Round_End);
+  
+  type Paused_By is (Unpaused, Player_One, Player_Two);
+  
+  type Who_Won is (Player_One, Player_Two, Tied);
   
   type Game_State is (Title, Menu, Stage_Select, Character_Select, Battle, Battle_Over);
   type Game_State_Data (GS : Game_State) is record
@@ -237,8 +270,20 @@ procedure Fighting_Game_Ada is
         player_two : Fighter.Fighter;
         camera_pos : Position;
         stage : Stage_Assets;
+        sequence_playing : Battle_Sequence := Intro;
+        paused : Paused_By := Unpaused;
+        round : Positive := 1;
+        rounds_won_needed_to_win : Positive := 2;
+        player_one_won_rounds : Natural := 0;
+        player_two_won_rounds : Natural := 0;
+        countdown_bitmap : access ALLEGRO_BITMAP := al_load_bitmap(New_String(battle_round_begin_bitmap_path));
+        player_one_move_list : access Menu_Entry_Array;
+        player_two_move_list : access Menu_Entry_Array;
+        player_one_fighter_id : Fighter_Options;
+        player_two_fighter_id : Fighter_Options;
       when Battle_Over =>
-        null;
+        victory_bitmap : access ALLEGRO_BITMAP := al_load_bitmap(New_String(victory_bitmap_path));
+        winner : Who_Won := Tied;
     end case;
   end record;
   type Game_State_Data_Access is access Game_State_Data;
@@ -274,6 +319,16 @@ procedure Fighting_Game_Ada is
   player_assign_player_two_path : constant String := "assets/assignment_player_two.png";
   camera_scroll_threshold : constant Scalar := half_screen_width / 2.0;
   camera_scroll_amount : constant Scalar := 1.0;
+  battle_intro_duration : constant Natural := 120;
+  battle_round_celebration_duration : constant Natural := 120;
+  round_start_countdown_show_three_duration : constant Natural := 60;
+  round_start_countdown_show_two_duration : constant Natural := 60;
+  round_start_countdown_show_one_duration : constant Natural := 60;
+  round_start_countdown_show_go_duration : constant Natural := 45;
+  battle_round_countdown_duration : constant Natural := round_start_countdown_show_three_duration + round_start_countdown_show_two_duration + round_start_countdown_show_one_duration + round_start_countdown_show_go_duration;
+  battle_player_one_starting_pos : constant Position := Position'(200.0, 400.0);
+  battle_player_two_starting_pos : constant Position := Position'(600.0, 400.0);
+  battle_player_starting_health : constant Integer := 100;
   
   frame_start_time : Time := Clock;
   Color_Black : ALLEGRO_COLOR;
@@ -339,15 +394,27 @@ procedure Fighting_Game_Ada is
   begin
     Go_To_Battle:
       declare
-        temp_state : access Game_State_Data := state;
+        function Generate_Movelist (fighter_id : Fighter_Options) return Menu_Entry_Array is
+        begin
+          return Menu_Entries_Connect_Gridwise(Menu_Entries_For_Moves(fighter_id), 1);
+        end Generate_Movelist;
+        
+        temp_state : constant access Game_State_Data := state;
       begin
         state := new Game_State_Data(Battle);
         state.player_one := Load_Fighter(Fighter_Options'Val(temp_state.p1_char_index));
         state.player_two := Load_Fighter(Fighter_Options'Val(temp_state.p2_char_index));
         state.stage := Load_Stage(temp_state.choosen_stage);
-        state.player_one.pos := Position'(200.0, 400.0);
-        state.player_two.pos := Position'(600.0, 400.0);
+        state.player_one.pos := battle_player_one_starting_pos;
+        state.player_two.pos := battle_player_two_starting_pos;
+        state.player_one.hitpoints := battle_player_starting_health;
+        state.player_two.hitpoints := battle_player_starting_health;
         Game_State_Pass_Player_Inputs(temp_state, state);
+        state.player_one_move_list := new Menu_Entry_Array'(Generate_Movelist(Fighter_Options'Val(temp_state.p1_char_index)));
+        state.player_two_move_list := new Menu_Entry_Array'(Generate_Movelist(Fighter_Options'Val(temp_state.p2_char_index)));
+        state.player_one_fighter_id := Fighter_Options'Val(temp_state.p1_char_index);
+        state.player_two_fighter_id := Fighter_Options'Val(temp_state.p2_char_index);
+        state.frame := 0;
       end Go_To_Battle;
   end Choose_Character;
   
@@ -768,68 +835,97 @@ procedure Fighting_Game_Ada is
                     end if;
                   end Char_Select_Input;
               when Battle =>
-                Battle_Input_Step:
-                  declare
-                    procedure Player_Battle_Input (GIS : Game_Input_State; F : in out Fighter.Fighter) is
+                if state.paused = Unpaused then
+                  case state.sequence_playing is
+                    when Intro =>
+                      null;
+                    when Round_Start =>
+                      null;
+                    when Round_End =>
+                      null;
+                    when None =>
+                      Battle_Input_Step:
+                        declare
+                          procedure Player_Battle_Input (GIS : Game_Input_State; F : in out Fighter.Fighter; Player_Pause : Paused_By) is
+                          begin
+                            if Input_Recognized(Ev, GIS, Up_Press) then
+                              Fighter.Press_Input(F, Globals.up, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Left_Press) then
+                              Fighter.Press_Input(F, Globals.left, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Down_Press) then
+                              Fighter.Press_Input(F, Globals.down, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Right_Press) then
+                              Fighter.Press_Input(F, Globals.right, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_1_Press) then
+                              Fighter.Press_Input(F, Globals.atk_1, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_2_Press) then
+                              Fighter.Press_Input(F, Globals.atk_2, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_3_Press) then
+                              Fighter.Press_Input(F, Globals.atk_3, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_4_Press) then
+                              Fighter.Press_Input(F, Globals.atk_4, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_5_Press) then
+                              Fighter.Press_Input(F, Globals.atk_5, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_6_Press) then
+                              Fighter.Press_Input(F, Globals.atk_6, state.frame);
+                            end if;
+                            
+                            if Input_Recognized(Ev, GIS, Up_Release) then
+                              Fighter.Release_Input(F, Globals.up, state.frame);
+                            end if;
+                            
+                            if Input_Recognized(Ev, GIS, Left_Release) then
+                              Fighter.Release_Input(F, Globals.left, state.frame);
+                            end if;
+                            
+                            if Input_Recognized(Ev, GIS, Down_Release) then
+                              Fighter.Release_Input(F, Globals.down, state.frame);
+                            end if;
+                            
+                            if Input_Recognized(Ev, GIS, Right_Release) then
+                              Fighter.Release_Input(F, Globals.right, state.frame);
+                            end if;
+                            
+                            if Input_Recognized(Ev, GIS, Attack_1_Release) then
+                              Fighter.Release_Input(F, Globals.atk_1, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_2_Release) then
+                              Fighter.Release_Input(F, Globals.atk_2, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_3_Release) then
+                              Fighter.Release_Input(F, Globals.atk_3, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_4_Release) then
+                              Fighter.Release_Input(F, Globals.atk_4, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_5_Release) then
+                              Fighter.Release_Input(F, Globals.atk_5, state.frame);
+                            elsif Input_Recognized(Ev, GIS, Attack_6_Release) then
+                              Fighter.Release_Input(F, Globals.atk_6, state.frame);
+                            end if;
+                            
+                            if Input_Recognized(Ev, GIS, Start_Press) then
+                              state.paused := Player_Pause;
+                            end if;
+                          end Player_Battle_Input;
+                        begin
+                          Player_Battle_Input(state.p1_input_state, state.player_one, Player_One);
+                          Player_Battle_Input(state.p2_input_state, state.player_two, Player_Two);
+                        end Battle_Input_Step;
+                  end case;
+                else
+                  Unpause_Check:
+                    declare
+                      procedure Check_If_Player_Unpauses (GIS : Game_Input_State) is
+                      begin
+                        if Input_Recognized(Ev, GIS, Start_Press) then
+                          state.paused := Unpaused;
+                        end if;
+                      end Check_If_Player_Unpauses;
                     begin
-                      if Input_Recognized(Ev, GIS, Up_Press) then
-                        Fighter.Press_Input(F, Globals.up, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Left_Press) then
-                        Fighter.Press_Input(F, Globals.left, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Down_Press) then
-                        Fighter.Press_Input(F, Globals.down, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Right_Press) then
-                        Fighter.Press_Input(F, Globals.right, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_1_Press) then
-                        Fighter.Press_Input(F, Globals.atk_1, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_2_Press) then
-                        Fighter.Press_Input(F, Globals.atk_2, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_3_Press) then
-                        Fighter.Press_Input(F, Globals.atk_3, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_4_Press) then
-                        Fighter.Press_Input(F, Globals.atk_4, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_5_Press) then
-                        Fighter.Press_Input(F, Globals.atk_5, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_6_Press) then
-                        Fighter.Press_Input(F, Globals.atk_6, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Start_Press) then
-                        F.show_hitboxes := not F.show_hitboxes;
+                      if state.paused = Player_One then
+                        Check_If_Player_Unpauses(state.p1_input_state);
+                      elsif state.paused = Player_Two then
+                        Check_If_Player_Unpauses(state.p2_input_state);
                       end if;
-                      
-                      if Input_Recognized(Ev, GIS, Up_Release) then
-                        Fighter.Release_Input(F, Globals.up, state.frame);
-                      end if;
-                      
-                      if Input_Recognized(Ev, GIS, Left_Release) then
-                        Fighter.Release_Input(F, Globals.left, state.frame);
-                      end if;
-                      
-                      if Input_Recognized(Ev, GIS, Down_Release) then
-                        Fighter.Release_Input(F, Globals.down, state.frame);
-                      end if;
-                      
-                      if Input_Recognized(Ev, GIS, Right_Release) then
-                        Fighter.Release_Input(F, Globals.right, state.frame);
-                      end if;
-                      
-                      if Input_Recognized(Ev, GIS, Attack_1_Release) then
-                        Fighter.Release_Input(F, Globals.atk_1, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_2_Release) then
-                        Fighter.Release_Input(F, Globals.atk_2, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_3_Release) then
-                        Fighter.Release_Input(F, Globals.atk_3, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_4_Release) then
-                        Fighter.Release_Input(F, Globals.atk_4, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_5_Release) then
-                        Fighter.Release_Input(F, Globals.atk_5, state.frame);
-                      elsif Input_Recognized(Ev, GIS, Attack_6_Release) then
-                        Fighter.Release_Input(F, Globals.atk_6, state.frame);
-                      end if;
-                    end Player_Battle_Input;
-                  begin
-                    Player_Battle_Input(state.p1_input_state, state.player_one);
-                    Player_Battle_Input(state.p2_input_state, state.player_two);
-                  end Battle_Input_Step;
+                    end Unpause_Check;
+                end if;
               when Battle_Over =>
                 null;
             end case;
@@ -953,18 +1049,105 @@ procedure Fighting_Game_Ada is
           al_draw_bitmap(state.char_selector_player_one, Float(state.char_entries(state.p1_char_index).offset.X), Float(state.char_entries(state.p1_char_index).offset.Y), 0);
           al_draw_bitmap(state.char_selector_player_two, Float(state.char_entries(state.p2_char_index).offset.X), Float(state.char_entries(state.p2_char_index).offset.Y), 0);
         when Battle =>
-          al_identity_transform(transform);
-          al_translate_transform(transform, Float(state.camera_pos.X), Float(state.camera_pos.Y));
-          al_use_transform(transform);
-          al_draw_bitmap(state.stage.background, Float(-(screen_width)), 0.0, 0);
-          Fighter.Draw(state.player_one);
-          Fighter.Draw(state.player_two);
-          al_identity_transform(transform);
-          al_use_transform(transform);
-          al_draw_text(basic_font, Text_Color, 100.0, 10.0, 0, New_String("Player 1 HP: " & state.player_one.hitpoints'Image));
-          al_draw_text(basic_font, Text_Color, 500.0, 10.0, 0, New_String("Player 2 HP: " & state.player_two.hitpoints'Image));
+          
+          if state.paused = Unpaused then
+            
+            al_identity_transform(transform);
+            al_translate_transform(transform, Float(state.camera_pos.X), Float(state.camera_pos.Y));
+            al_use_transform(transform);
+            al_draw_bitmap(state.stage.background, Float(-(screen_width)), 0.0, 0);
+            Fighter.Draw(state.player_one);
+            Fighter.Draw(state.player_two);
+            al_identity_transform(transform);
+            al_use_transform(transform);
+            al_draw_text(basic_font, Text_Color, 100.0, 10.0, 0, New_String("Player 1 HP: " & state.player_one.hitpoints'Image));
+            al_draw_text(basic_font, Text_Color, 500.0, 10.0, 0, New_String("Player 2 HP: " & state.player_two.hitpoints'Image));
+            al_draw_text(basic_font, Text_Color, 300.0, 10.0, 0, New_String("Round #: " & state.round'Image));
+            al_draw_text(basic_font, Text_Color, 100.0, 20.0, 0, New_String("Rounds Won: " & state.player_one_won_rounds'Image));
+            al_draw_text(basic_font, Text_Color, 500.0, 20.0, 0, New_String("Rounds Won: " & state.player_two_won_rounds'Image));
+            
+            case state.sequence_playing is
+              when Intro =>
+                null;
+              when Round_Start =>
+                Draw_Countdown:
+                  declare
+                    procedure Draw_Countdown_Region (offset_x : Float; offset_y : Float) is
+                    begin
+                      al_draw_bitmap_region(state.countdown_bitmap, offset_x, offset_y, 200.0, 200.0, 300.0, 100.0, 0);
+                    end Draw_Countdown_Region;
+                  begin
+                    if state.frame <= round_start_countdown_show_three_duration then
+                      Draw_Countdown_Region(0.0, 0.0);
+                    elsif state.frame <= (round_start_countdown_show_two_duration + round_start_countdown_show_three_duration) then
+                      Draw_Countdown_Region(200.0, 0.0);
+                    elsif state.frame <= (round_start_countdown_show_one_duration + round_start_countdown_show_two_duration + round_start_countdown_show_three_duration) then
+                      Draw_Countdown_Region(0.0, 200.0);
+                    else
+                      Draw_Countdown_Region(200.0, 200.0);
+                    end if;
+                  end Draw_Countdown;
+              when Round_End =>
+                null;
+              when None =>
+                null;
+            end case;
+          else
+            Draw_Pause_Menu:
+              declare
+                procedure Show_Player_Who_Paused (Paused_By_Text : String) is
+                begin
+                  al_draw_text(basic_font, Text_Color, 10.0, 10.0, 0, New_String("Paused by " & Paused_By_Text));
+                end Show_Player_Who_Paused;
+                
+                procedure Show_Move_Inputs (moves_entries : access Menu_Entry_Array; player_moves_col : Fighter.Moves_Collection_Access; fo : Fighter_Options) is
+                  function Move_Inputs_Text (at_ind : Natural) return String is
+                    move_we_want : constant Move.Move := player_moves_col(Fighter_Move_Indexes(fo)(at_ind));
+                    ret : Unbounded_String := To_Unbounded_String("");
+                    cmd : Input_Tree_Node_Access;
+                  begin
+                    for I in move_we_want.command.all'Range loop
+                      cmd := move_we_want.command.all(I);
+                      if cmd.ID /= tree_end then
+                        ret := ret & (if I /= move_we_want.command.all'First then ", " else "") & cmd.ID'Image;
+                      end if;
+                    end loop;
+                    
+                    return To_String(ret);
+                  end Move_Inputs_Text;
+                  current_entry : Menu_Entry;
+                begin
+                  for I in moves_entries.all'Range loop
+                    current_entry := moves_entries(I);
+                    al_draw_text(basic_font, Text_Color, Float(current_entry.offset.X), Float(current_entry.offset.Y), 0, New_String(current_entry.text.all & " -->  " & Move_Inputs_Text(I)));
+                  end loop;
+                end Show_Move_Inputs;
+              begin
+                if state.paused = Player_One then
+                  Show_Player_Who_Paused("Player One");
+                  Show_Move_Inputs(state.player_one_move_list, state.player_one.moves, state.player_one_fighter_id);
+                elsif state.paused = Player_Two then
+                  Show_Player_Who_Paused("Player Two");
+                  Show_Move_Inputs(state.player_two_move_list, state.player_two.moves, state.player_two_fighter_id);
+                end if;
+              end Draw_Pause_Menu;
+          end if;
         when Battle_Over =>
-          null;
+          Draw_Victory_Screen:
+            declare
+              procedure Show_Winner (bitmap : access ALLEGRO_BITMAP) is
+              begin
+                al_draw_bitmap(bitmap, 600.0, 300.0, 0);
+              end Show_Winner;
+            begin
+              al_draw_bitmap(state.victory_bitmap, 0.0, 0.0, 0);
+              
+              if state.winner = Player_One then
+                Show_Winner(player_assign_player_one_icon_bitmap);
+              elsif state.winner = Player_Two then
+                Show_Winner(player_assign_player_two_icon_bitmap);
+              end if;
+            end Draw_Victory_Screen;
       end case;
     end if;
     
@@ -1055,7 +1238,7 @@ begin
                 if state.frame >= title_transition_to_menu_title_slide_frames then
                   PassOnData:
                     declare
-                      temp_state : access Game_State_Data := state;
+                      temp_state : constant access Game_State_Data := state;
                     begin
                       state := new Game_State_Data(Menu);
                       state.mbackground := temp_state.tbackground;
@@ -1092,179 +1275,247 @@ begin
               Open_Assignment_Screen;
             end if;
           when Battle =>
-            if (state.player_one.pos.X + state.player_one.sprite_offset.X) < (state.player_two.pos.X + state.player_two.sprite_offset.X) then
-              if not state.player_one.facing_right and state.player_one.on_ground and not (state.player_one.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_one.inputs) then
-                state.player_one.facing_right := true;
-              end if;
+            if state.paused = Unpaused then
+              case state.sequence_playing is
+                when Intro =>
+                  if state.frame >= battle_intro_duration then
+                    state.sequence_playing := Round_Start;
+                    state.frame := 0;
+                  end if;
+                when Round_Start =>
+                  if state.frame >= battle_round_countdown_duration then
+                    state.sequence_playing := None;
+                  end if;
+                when Round_End =>
+                  if state.frame >= battle_round_celebration_duration then
+                    End_Of_Round:
+                      declare
+                        function Player_Won (player_num_wins : Natural) return Boolean is
+                        begin
+                          return player_num_wins >= Natural(state.rounds_won_needed_to_win);
+                        end Player_Won;
+                        
+                        procedure On_Player_Win (result : Who_Won) is
+                        begin
+                          state := new Game_State_Data(Battle_Over);
+                          al_stop_samples;
+                          state.winner := result;
+                          state.frame := 0;
+                        end On_Player_Win;
+                        
+                        procedure Award_Round_Win_If_Dead (Win_Total : in out Natural; Other_Guy : Fighter.Fighter) is
+                        begin
+                          if Other_Guy.hitpoints <= 0 then
+                            Win_Total := Win_Total + 1;
+                          end if;
+                        end Award_Round_Win_If_Dead;
+                      begin
+                        Award_Round_Win_If_Dead(state.player_one_won_rounds, state.player_two);
+                        Award_Round_Win_If_Dead(state.player_two_won_rounds, state.player_one);
+                        
+                        if Player_Won(state.player_one_won_rounds) then
+                          On_Player_Win(Player_One);
+                        elsif Player_Won(state.player_two_won_rounds) then
+                          On_Player_Win(Player_Two);
+                        else
+                          state.sequence_playing := Round_Start;
+                          state.round := state.round + 1;
+                          state.player_one.hitpoints := battle_player_starting_health;
+                          state.player_two.hitpoints := battle_player_starting_health;
+                          state.player_one.pos := battle_player_one_starting_pos;
+                          state.player_two.pos := battle_player_two_starting_pos;
+                          state.camera_pos := Position'(0.0, 0.0);
+                          state.frame := 0;
+                        end if;
+                      end End_Of_Round;
+                  end if;
+                when None =>
+                  null;
+              end case;
               
-              if state.player_two.facing_right and state.player_two.on_ground and not (state.player_two.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_two.inputs) then
-                state.player_two.facing_right := false;
+              if state.GS = Battle then
+                if (state.player_one.pos.X + state.player_one.sprite_offset.X) < (state.player_two.pos.X + state.player_two.sprite_offset.X) then
+                  if not state.player_one.facing_right and state.player_one.on_ground and not (state.player_one.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_one.inputs) then
+                    state.player_one.facing_right := true;
+                  end if;
+                  
+                  if state.player_two.facing_right and state.player_two.on_ground and not (state.player_two.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_two.inputs) then
+                    state.player_two.facing_right := false;
+                  end if;
+                else
+                  if state.player_one.facing_right and state.player_one.on_ground and not (state.player_one.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_one.inputs) then
+                    state.player_one.facing_right := false;
+                  end if;
+                  
+                  if not state.player_two.facing_right and state.player_two.on_ground and not (state.player_two.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_two.inputs) then
+                    state.player_two.facing_right := true;
+                  end if;
+                end if;
+                
+                Fighter.Update(state.player_one, state.frame);
+                Fighter.Update(state.player_two, state.frame);
+                
+                -- check for floor collision here
+                feet_touches_floor(state.player_one);
+                feet_touches_floor(state.player_two);
+                
+                -- check for other collisions here
+                FighterGeneralCollision:
+                  declare
+                    p1_touching_wall : Wall_Collision := body_touches_wall(state.player_one, state.camera_pos.X);
+                    p2_touching_wall : Wall_Collision := body_touches_wall(state.player_two, state.camera_pos.X);
+                    players_colliding : Boolean := Collides(state.player_one.chunkbox + state.player_one.pos, state.player_two.chunkbox + state.player_two.pos);
+                    p1_hitstunned : Boolean := state.player_one.hitstun_duration > 0;
+                    p2_hitstunned : Boolean := state.player_two.hitstun_duration > 0;
+                    p1_is_left : Boolean := state.player_one.pos.X < state.player_two.pos.X;
+                    
+                    function uncollide_wall (Player : Fighter.Fighter; Touching : Wall_Collision) return Scalar is
+                      value : constant Scalar := Player.pos.X + Player.chunkbox.pos.X;
+                      absolute_value : constant Scalar := abs value;
+                      difference : Scalar := 0.0;
+                      
+                      procedure calculate_difference is
+                        WallX : Scalar := 0.0;
+                        rad : Scalar := 0.0;
+                        dir : Scalar := 0.0;
+                        absolute_wall_x : Scalar := 0.0;
+                      begin
+                        if Touching = Left_Collision then
+                          WallX := -state.camera_pos.X;
+                          rad := -Player.chunkbox.radius;
+                          dir := -1.0;
+                        elsif Touching = Right_Collision then
+                          WallX := -(state.camera_pos.X) + screen_width;
+                          rad := Player.chunkbox.radius;
+                          dir := 1.0;
+                        end if;
+                        absolute_wall_x := abs WallX;
+                        difference := dir * (rad + absolute_value - absolute_wall_x);
+                      end calculate_difference;
+                    begin
+                      if Touching = Left_Collision then
+                        calculate_difference;
+                        return Player.pos.X + difference;
+                      elsif Touching = Right_Collision then
+                        calculate_difference;
+                        return Player.pos.X - difference;
+                      else
+                        return Player.pos.X;
+                      end if;
+                    end uncollide_wall;
+                    
+                    type Uncollide_Dir is (Left, Right);
+                    
+                    function uncollide_player (ToMove : Fighter.Fighter; From : Fighter.Fighter; Direction : Uncollide_Dir) return Scalar is
+                      move_rad : constant Scalar := ToMove.chunkbox.radius;
+                      from_rad : constant Scalar := From.chunkbox.radius;
+                      dir : Scalar := 0.0;
+                    begin
+                      case Direction is
+                        when Left =>
+                          dir := -1.0;
+                        when Right =>
+                          dir := 1.0;
+                      end case;
+                      return From.pos.X + (dir * (From.chunkbox.pos.X + move_rad + from_rad + ToMove.chunkbox.pos.X));
+                    end uncollide_player;
+                  begin
+                    if players_colliding and not (state.player_one.grabbed or state.player_two.grabbed) then
+                      if p1_touching_wall = p2_touching_wall and p1_touching_wall /= None then
+                        state.player_one.pos.X := uncollide_wall(state.player_one, p1_touching_wall);
+                        state.player_two.pos.X := uncollide_wall(state.player_two, p2_touching_wall);
+                        
+                        if p1_touching_wall = Left_Collision then
+                          if p1_is_left then
+                            state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Right);
+                          else
+                              state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Right);
+                          end if;
+                        elsif p1_touching_wall = Right_Collision then
+                          if p1_is_left then
+                            state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Left);
+                          else
+                            state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Left);
+                          end if;
+                        end if;
+                      elsif p1_touching_wall /= None and p2_touching_wall = None then
+                        if p1_touching_wall = Left_Collision then
+                          state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Right);
+                        elsif p1_touching_wall = Right_Collision then
+                          state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Left);
+                        end if;
+                      elsif p2_touching_wall /= None and p1_touching_wall = None then
+                        if p2_touching_wall = Left_Collision then
+                          state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Right);
+                        elsif p2_touching_wall = Right_Collision then
+                          state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Left);
+                        end if;
+                      elsif p1_hitstunned and not p2_hitstunned then
+                        if p1_is_left then
+                          state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Left);
+                        else
+                          state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Right);
+                        end if;
+                      elsif not p1_hitstunned and p2_hitstunned then
+                        if p1_is_left then
+                          state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Right);
+                        else
+                          state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Left);
+                        end if;
+                      else
+                        if p1_is_left then
+                          state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Left);
+                          state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Right);
+                        else
+                          state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Right);
+                          state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Left);
+                        end if;
+                      end if;
+                    else
+                      state.player_one.pos.X := uncollide_wall(state.player_one, p1_touching_wall);
+                      state.player_two.pos.X := uncollide_wall(state.player_two, p2_touching_wall);
+                    end if;
+                  end FighterGeneralCollision;
+                
+                Set_Players_Blocking(state.player_one, state.player_two);
+                
+                Collide_Attacks_With(state.player_one, state.player_two);
+                Collide_Attacks_With(state.player_two, state.player_one);
+                
+                -- move camera here
+                MoveCamera:
+                  declare
+                    cam_middle_relative_to_players : constant Scalar := -(state.camera_pos.X - half_screen_width);
+                    left_threshold : constant Scalar := cam_middle_relative_to_players - camera_scroll_threshold;
+                    right_threshold : constant Scalar := cam_middle_relative_to_players + camera_scroll_threshold;
+                    left_threshold_passed : constant Boolean := (state.player_one.pos.X <= left_threshold) or (state.player_two.pos.X <= left_threshold);
+                    right_threshold_passed : constant Boolean := (state.player_one.pos.X >= right_threshold) or (state.player_two.pos.X >= right_threshold);
+                  begin
+                    if (state.camera_pos.X - half_screen_width) <= -(half_stage_width) then
+                      state.camera_pos.X := -(half_stage_width) + half_screen_width;
+                    elsif (state.camera_pos.X + half_screen_width) >= half_stage_width then
+                      state.camera_pos.X := half_stage_width - half_screen_width;
+                    else
+                      if not (left_threshold_passed and right_threshold_passed) then
+                        if left_threshold_passed then
+                          state.camera_pos.X := state.camera_pos.X + camera_scroll_amount;
+                        elsif right_threshold_passed then
+                          state.camera_pos.X := state.camera_pos.X - camera_scroll_amount;
+                        end if;
+                      end if;
+                    end if;
+                  end MoveCamera;
+                
+                if not (state.sequence_playing = Round_End) and (state.player_one.hitpoints <= 0 or state.player_two.hitpoints <= 0) then
+                  state.sequence_playing := Round_End;
+                  state.frame := 0;
+                else
+                  state.frame := state.frame + 1;
+                end if;
               end if;
             else
-              if state.player_one.facing_right and state.player_one.on_ground and not (state.player_one.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_one.inputs) then
-                state.player_one.facing_right := false;
-              end if;
-              
-              if not state.player_two.facing_right and state.player_two.on_ground and not (state.player_two.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_two.inputs) then
-                state.player_two.facing_right := true;
-              end if;
+              null;
             end if;
-            
-            Fighter.Update(state.player_one, state.frame);
-            Fighter.Update(state.player_two, state.frame);
-            
-            -- check for floor collision here
-            feet_touches_floor(state.player_one);
-            feet_touches_floor(state.player_two);
-            
-            -- check for other collisions here
-            FighterGeneralCollision:
-              declare
-                p1_touching_wall : Wall_Collision := body_touches_wall(state.player_one, state.camera_pos.X);
-                p2_touching_wall : Wall_Collision := body_touches_wall(state.player_two, state.camera_pos.X);
-                players_colliding : Boolean := Collides(state.player_one.chunkbox + state.player_one.pos, state.player_two.chunkbox + state.player_two.pos);
-                p1_hitstunned : Boolean := state.player_one.hitstun_duration > 0;
-                p2_hitstunned : Boolean := state.player_two.hitstun_duration > 0;
-                p1_is_left : Boolean := state.player_one.pos.X < state.player_two.pos.X;
-                
-                function uncollide_wall (Player : Fighter.Fighter; Touching : Wall_Collision) return Scalar is
-                  value : constant Scalar := Player.pos.X + Player.chunkbox.pos.X;
-                  absolute_value : constant Scalar := abs value;
-                  difference : Scalar := 0.0;
-                  
-                  procedure calculate_difference is
-                    WallX : Scalar := 0.0;
-                    rad : Scalar := 0.0;
-                    dir : Scalar := 0.0;
-                    absolute_wall_x : Scalar := 0.0;
-                  begin
-                    if Touching = Left_Collision then
-                      WallX := -state.camera_pos.X;
-                      rad := -Player.chunkbox.radius;
-                      dir := -1.0;
-                    elsif Touching = Right_Collision then
-                      WallX := -(state.camera_pos.X) + screen_width;
-                      rad := Player.chunkbox.radius;
-                      dir := 1.0;
-                    end if;
-                    absolute_wall_x := abs WallX;
-                    difference := dir * (rad + absolute_value - absolute_wall_x);
-                  end calculate_difference;
-                begin
-                  if Touching = Left_Collision then
-                    calculate_difference;
-                    return Player.pos.X + difference;
-                  elsif Touching = Right_Collision then
-                    calculate_difference;
-                    return Player.pos.X - difference;
-                  else
-                    return Player.pos.X;
-                  end if;
-                end uncollide_wall;
-                
-                type Uncollide_Dir is (Left, Right);
-                
-                function uncollide_player (ToMove : Fighter.Fighter; From : Fighter.Fighter; Direction : Uncollide_Dir) return Scalar is
-                  move_rad : constant Scalar := ToMove.chunkbox.radius;
-                  from_rad : constant Scalar := From.chunkbox.radius;
-                  dir : Scalar := 0.0;
-                begin
-                  case Direction is
-                    when Left =>
-                      dir := -1.0;
-                    when Right =>
-                      dir := 1.0;
-                  end case;
-                  return From.pos.X + (dir * (From.chunkbox.pos.X + move_rad + from_rad + ToMove.chunkbox.pos.X));
-                end uncollide_player;
-              begin
-                if players_colliding and not (state.player_one.grabbed or state.player_two.grabbed) then
-                  if p1_touching_wall = p2_touching_wall and p1_touching_wall /= None then
-                    state.player_one.pos.X := uncollide_wall(state.player_one, p1_touching_wall);
-                    state.player_two.pos.X := uncollide_wall(state.player_two, p2_touching_wall);
-                    
-                    if p1_touching_wall = Left_Collision then
-                      if p1_is_left then
-                        state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Right);
-                      else
-                         state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Right);
-                      end if;
-                    elsif p1_touching_wall = Right_Collision then
-                      if p1_is_left then
-                        state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Left);
-                      else
-                        state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Left);
-                      end if;
-                    end if;
-                  elsif p1_touching_wall /= None and p2_touching_wall = None then
-                    if p1_touching_wall = Left_Collision then
-                      state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Right);
-                    elsif p1_touching_wall = Right_Collision then
-                      state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Left);
-                    end if;
-                  elsif p2_touching_wall /= None and p1_touching_wall = None then
-                    if p2_touching_wall = Left_Collision then
-                      state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Right);
-                    elsif p2_touching_wall = Right_Collision then
-                      state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Left);
-                    end if;
-                  elsif p1_hitstunned and not p2_hitstunned then
-                    if p1_is_left then
-                      state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Left);
-                    else
-                      state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Right);
-                    end if;
-                  elsif not p1_hitstunned and p2_hitstunned then
-                    if p1_is_left then
-                      state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Right);
-                    else
-                      state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Left);
-                    end if;
-                  else
-                    if p1_is_left then
-                      state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Left);
-                      state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Right);
-                    else
-                      state.player_one.pos.X := uncollide_player(state.player_one, state.player_two, Right);
-                      state.player_two.pos.X := uncollide_player(state.player_two, state.player_one, Left);
-                    end if;
-                  end if;
-                else
-                  state.player_one.pos.X := uncollide_wall(state.player_one, p1_touching_wall);
-                  state.player_two.pos.X := uncollide_wall(state.player_two, p2_touching_wall);
-                end if;
-              end FighterGeneralCollision;
-            
-            Set_Players_Blocking(state.player_one, state.player_two);
-            
-            Collide_Attacks_With(state.player_one, state.player_two);
-            Collide_Attacks_With(state.player_two, state.player_one);
-            
-            -- move camera here
-            MoveCamera:
-              declare
-                cam_middle_relative_to_players : constant Scalar := -(state.camera_pos.X - half_screen_width);
-                left_threshold : constant Scalar := cam_middle_relative_to_players - camera_scroll_threshold;
-                right_threshold : constant Scalar := cam_middle_relative_to_players + camera_scroll_threshold;
-                left_threshold_passed : constant Boolean := (state.player_one.pos.X <= left_threshold) or (state.player_two.pos.X <= left_threshold);
-                right_threshold_passed : constant Boolean := (state.player_one.pos.X >= right_threshold) or (state.player_two.pos.X >= right_threshold);
-              begin
-                if (state.camera_pos.X - half_screen_width) <= -(half_stage_width) then
-                  state.camera_pos.X := -(half_stage_width) + half_screen_width;
-                elsif (state.camera_pos.X + half_screen_width) >= half_stage_width then
-                  state.camera_pos.X := half_stage_width - half_screen_width;
-                else
-                  if not (left_threshold_passed and right_threshold_passed) then
-                    if left_threshold_passed then
-                      state.camera_pos.X := state.camera_pos.X + camera_scroll_amount;
-                    elsif right_threshold_passed then
-                      state.camera_pos.X := state.camera_pos.X - camera_scroll_amount;
-                    end if;
-                  end if;
-                end if;
-              end MoveCamera;
-            
-            state.frame := state.frame + 1;
           
           when Battle_Over =>
             null;
