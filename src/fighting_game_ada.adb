@@ -95,7 +95,7 @@ procedure Fighting_Game_Ada is
     null;
   end Empty_Proc;
   
-  function Menu_Entries_For_Moves (chosen : Fighter_Options) return Menu_Entry_Array is
+  function Menu_Entries_For_Moves (chosen : Fighter_Options; x_offset : Scalar) return Menu_Entry_Array is
     move_names : constant Fighter_Move_Name_Array := Fighter_Move_Names(chosen);
     ret : Menu_Entry_Array(move_names'Range);
     last_y : Scalar := 10.0;
@@ -105,6 +105,7 @@ procedure Fighting_Game_Ada is
       me := ret(I);
       me.operation := Empty_Proc'Access;
       me.text := new String'(move_names(I).all);
+      me.offset.X := x_offset;
       me.offset.Y := last_y + 30.0;
       last_y := me.offset.Y;
       ret(I) := me;
@@ -120,6 +121,16 @@ procedure Fighting_Game_Ada is
   
   procedure Choose_Character;
   
+  procedure Battle_Over_Rematch;
+  procedure Battle_Over_Return_Character_Select;
+  procedure Battle_Over_Return_Stage_Select;
+  procedure Battle_Over_Quit_Menu;
+  
+  procedure Battle_Paused_Restart;
+  procedure Battle_Paused_Go_Character_Select;
+  procedure Battle_Paused_Go_Stage_Select;
+  procedure Battle_Paused_Go_Menu;
+  
   stage_select_row_count : constant Positive := 5;
   char_select_row_count : constant Positive := 5;
   stage_select_background_path : constant String := "assets/stage_select_background.png";
@@ -128,9 +139,14 @@ procedure Fighting_Game_Ada is
   selection_cursor_player_two_path : constant String := "assets/selector_player_two.png";
   battle_round_begin_bitmap_path : constant String := "assets/round_begin_countdown.png";
   victory_bitmap_path : constant String := "assets/victory.png";
+  title_logo_start_x : constant Scalar := 140.0;
+  title_logo_start_y : constant Scalar := -90.0;
+  title_background_path : constant String := "assets/mall_warriors_sky_background.png";
+  title_logo_path : constant String := "assets/mall_warriors_logo.png";
+  title_start_message_path : constant String := "assets/mall_warriors_press_start.png";
   
   type Icon is record
-    bitmap : access ALLEGRO_BITMAP;
+    bitmap : ALLEGRO_BITMAP_ACCESS;
   end record;
   type Icon_Array is array(Natural range <>) of Icon;
   
@@ -168,17 +184,17 @@ procedure Fighting_Game_Ada is
     case GS is
       when Title =>
         ts : Title_State := Logo_Slide_In;
-        tbackground : access ALLEGRO_BITMAP;
-        tlogo : access ALLEGRO_BITMAP;
-        tstartmsg : access ALLEGRO_BITMAP;
-        logo_x : Scalar;
-        logo_y : Scalar;
+        tbackground : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(title_background_path));
+        tlogo : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(title_logo_path));
+        tstartmsg : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(title_start_message_path));
+        logo_x : Scalar := title_logo_start_x;
+        logo_y : Scalar := title_logo_start_y;
         start_flash_showing : Boolean := true;
         update_title_frames : Boolean := true;
         logo_scale : Scalar := 1.0;
       when Menu =>
-        mbackground : access ALLEGRO_BITMAP;
-        mlogo : access ALLEGRO_BITMAP;
+        mbackground : ALLEGRO_BITMAP_ACCESS;
+        mlogo : ALLEGRO_BITMAP_ACCESS;
         mlogo_scale : Scalar := 1.0;
         mlogo_pos : Position;
         main_menu : access Menu_Entry_Array := new Menu_Entry_Array'(
@@ -230,8 +246,8 @@ procedure Fighting_Game_Ada is
           1 => Icon'(bitmap => Stage_Icon(Test2))
         );
         p1_stage_index : Natural := 0;
-        stage_select_background : access ALLEGRO_BITMAP := al_load_bitmap(New_String(stage_select_background_path));
-        stage_selector_player_one : access ALLEGRO_BITMAP := al_load_bitmap(New_String(selection_cursor_player_one_path));
+        stage_select_background : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(stage_select_background_path));
+        stage_selector_player_one : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(selection_cursor_player_one_path));
       when Character_Select =>
         char_entries : access Menu_Entry_Array := new Menu_Entry_Array'(Menu_Entries_Connect_Gridwise(
         Menu_Entry_Array'(
@@ -262,9 +278,9 @@ procedure Fighting_Game_Ada is
         p1_char_index : Natural := 0;
         p2_char_index : Natural := 0;
         choosen_stage : Stage_Options;
-        char_select_background : access ALLEGRO_BITMAP := al_load_bitmap(New_String(char_select_background_path));
-        char_selector_player_one : access ALLEGRO_BITMAP := al_load_bitmap(New_String(selection_cursor_player_one_path));
-        char_selector_player_two : access ALLEGRO_BITMAP := al_load_bitmap(New_String(selection_cursor_player_two_path));
+        char_select_background : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(char_select_background_path));
+        char_selector_player_one : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(selection_cursor_player_one_path));
+        char_selector_player_two : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(selection_cursor_player_two_path));
       when Battle =>
         player_one : Fighter.Fighter;
         player_two : Fighter.Fighter;
@@ -276,14 +292,102 @@ procedure Fighting_Game_Ada is
         rounds_won_needed_to_win : Positive := 2;
         player_one_won_rounds : Natural := 0;
         player_two_won_rounds : Natural := 0;
-        countdown_bitmap : access ALLEGRO_BITMAP := al_load_bitmap(New_String(battle_round_begin_bitmap_path));
+        countdown_bitmap : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(battle_round_begin_bitmap_path));
         player_one_move_list : access Menu_Entry_Array;
         player_two_move_list : access Menu_Entry_Array;
         player_one_fighter_id : Fighter_Options;
         player_two_fighter_id : Fighter_Options;
+        current_stage_id : Stage_Options;
+        pause_menu_options : access Menu_Entry_Array := new Menu_Entry_Array'(Menu_Entries_Connect_Gridwise(
+        Menu_Entry_Array'(
+          0 => Menu_Entry'(
+            operation => Battle_Paused_Restart'Access,
+            text => new String'("Restart"),
+            offset => Position'(X => 100.0, Y => 400.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          ),
+          1 => Menu_Entry'(
+            operation => Battle_Paused_Go_Character_Select'Access,
+            text => new String'("Return to Character Select"),
+            offset => Position'(X => 100.0, Y => 420.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          ),
+          2 => Menu_Entry'(
+            operation => Battle_Paused_Go_Stage_Select'Access,
+            text => new String'("Return to Stage Select"),
+            offset => Position'(X => 100.0, Y => 440.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          ),
+          3 => Menu_Entry'(
+            operation => Battle_Paused_Go_Menu'Access,
+            text => new String'("Quit to Menu"),
+            offset => Position'(X => 100.0, Y => 460.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          )
+        ),
+        1
+        ));
+        pause_menu_options_index : Natural := 0;
       when Battle_Over =>
-        victory_bitmap : access ALLEGRO_BITMAP := al_load_bitmap(New_String(victory_bitmap_path));
+        victory_bitmap : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(victory_bitmap_path));
         winner : Who_Won := Tied;
+        after_battle_options : access Menu_Entry_Array := new Menu_Entry_Array'(Menu_Entries_Connect_Gridwise(
+        Menu_Entry_Array'(
+          0 => Menu_Entry'(
+            operation => Battle_Over_Rematch'Access,
+            text => new String'("Rematch!"),
+            offset => Position'(X => 400.0, Y => 400.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          ),
+          1 => Menu_Entry'(
+            operation => Battle_Over_Return_Character_Select'Access,
+            text => new String'("Return to Character Select"),
+            offset => Position'(X => 400.0, Y => 420.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          ),
+          2 => Menu_Entry'(
+            operation => Battle_Over_Return_Stage_Select'Access,
+            text => new String'("Return to Stage Select"),
+            offset => Position'(X => 400.0, Y => 440.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          ),
+          3 => Menu_Entry'(
+            operation => Battle_Over_Quit_Menu'Access,
+            text => new String'("Quit to Menu"),
+            offset => Position'(X => 400.0, Y => 460.0),
+            above_move_entry => 0,
+            below_move_entry => 0,
+            left_move_entry => 0,
+            right_move_entry => 0
+          )
+        ),
+        1
+        ));
+        after_battle_index : Natural := 0;
+        previous_stage_id : Stage_Options;
+        previous_player_one_fighter_id : Fighter_Options;
+        previous_player_two_fighter_id : Fighter_Options;
     end case;
   end record;
   type Game_State_Data_Access is access Game_State_Data;
@@ -296,21 +400,22 @@ procedure Fighting_Game_Ada is
   floor_height : constant Scalar := Scalar(screen_height / 6.0) * 5.0;
   stage_width : constant Scalar := screen_width * 3.0;
   half_stage_width : constant Scalar := stage_width / 2.0;
-  title_background_path : constant String := "assets/mall_warriors_sky_background.png";
-  title_logo_path : constant String := "assets/mall_warriors_logo.png";
-  title_start_message_path : constant String := "assets/mall_warriors_press_start.png";
+  draw_general_option_x_offset : constant Scalar := -5.0;
   title_logo_slide_frames : constant Natural := 120;
   title_start_flash_on_frames : constant Natural := 60;
   title_start_flash_off_frames : constant Natural := 30;
   title_start_msg_x : constant Float := 280.0;
   title_start_msg_y : constant Float := 300.0;
   title_logo_y_move_by : constant Scalar := 2.0;
+  title_logo_slide_final_y : constant Scalar := (title_logo_slide_frames * title_logo_y_move_by) + title_logo_start_x;
   title_transition_to_menu_title_slide_frames : constant Natural := 60;
   title_transition_scale_amount : constant Scalar := -0.01;
   title_transition_move_x_amount : constant Scalar := 5.0;
-  title_transition_move_y_amount : constant Scalar := 2.0;
+  title_transition_move_y_amount : constant Scalar := -1.0;
+  title_transition_scale_final : constant Scalar := 1.0 + (title_transition_to_menu_title_slide_frames * title_transition_scale_amount);
+  title_transition_move_x_final : constant Scalar := title_logo_start_x + (title_transition_to_menu_title_slide_frames * title_transition_move_x_amount);
+  title_transition_move_y_final : constant Scalar := title_logo_slide_final_y + (title_transition_to_menu_title_slide_frames * title_transition_move_y_amount);
   menu_text_zoom : constant Float := 2.0;
-  menu_selected_text_x_offset : constant Float := -5.0;
   menu_sound_path : constant String := "assets/menu_move_pop.flac";
   player_assign_background_path : constant String := "assets/player_assign_background.png";
   player_assign_controller_icon_path : constant String := "assets/controller_icon.png";
@@ -329,6 +434,7 @@ procedure Fighting_Game_Ada is
   battle_player_one_starting_pos : constant Position := Position'(200.0, 400.0);
   battle_player_two_starting_pos : constant Position := Position'(600.0, 400.0);
   battle_player_starting_health : constant Integer := 100;
+  battle_pause_movelist_x_offset : constant Scalar := 300.0;
   
   frame_start_time : Time := Clock;
   Color_Black : ALLEGRO_COLOR;
@@ -339,11 +445,11 @@ procedure Fighting_Game_Ada is
   Unselected_Text_Color : ALLEGRO_COLOR;
   Selected_Text_Color : ALLEGRO_COLOR;
   menu_move_sound : access ALLEGRO_SAMPLE;
-  player_assign_background_bitmap: access ALLEGRO_BITMAP;
-  player_assign_controller_icon_bitmap : access ALLEGRO_BITMAP;
-  player_assign_keyboard_icon_bitmap : access ALLEGRO_BITMAP;
-  player_assign_player_one_icon_bitmap : access ALLEGRO_BITMAP;
-  player_assign_player_two_icon_bitmap : access ALLEGRO_BITMAP;
+  player_assign_background_bitmap: ALLEGRO_BITMAP_ACCESS;
+  player_assign_controller_icon_bitmap : ALLEGRO_BITMAP_ACCESS;
+  player_assign_keyboard_icon_bitmap : ALLEGRO_BITMAP_ACCESS;
+  player_assign_player_one_icon_bitmap : ALLEGRO_BITMAP_ACCESS;
+  player_assign_player_two_icon_bitmap : ALLEGRO_BITMAP_ACCESS;
   
   Allegro_Initialization_Failure : exception;
   
@@ -373,6 +479,8 @@ procedure Fighting_Game_Ada is
       end Go_To_Stage_Select;
   end Main_Menu_Go_To_Verses;
   
+  procedure Go_Back_To_Character_Select (stage : Stage_Options);
+  
   procedure Main_Menu_Quit_Game is
   begin
     state.should_exit := true;
@@ -384,38 +492,42 @@ procedure Fighting_Game_Ada is
       declare
         temp_state : access Game_State_Data := state;
       begin
-        state := new Game_State_Data(Character_Select);
-        state.choosen_stage := Stage_Options'Val(temp_state.p1_stage_index);
-        Game_State_Pass_Player_Inputs(temp_state, state);
+        Go_Back_To_Character_Select(Stage_Options'Val(temp_state.p1_stage_index));
       end Go_To_Character_Select;
   end Choose_Stage;
   
-  procedure Choose_Character is
+  procedure Go_To_Start_Battle (choosen_stage : Stage_Options; p1_fighter_id : Fighter_Options; p2_fighter_id : Fighter_Options) is
   begin
     Go_To_Battle:
       declare
-        function Generate_Movelist (fighter_id : Fighter_Options) return Menu_Entry_Array is
+        function Generate_Movelist (fighter_id : Fighter_Options; x_offset : Scalar) return Menu_Entry_Array is
         begin
-          return Menu_Entries_Connect_Gridwise(Menu_Entries_For_Moves(fighter_id), 1);
+          return Menu_Entries_Connect_Gridwise(Menu_Entries_For_Moves(fighter_id, x_offset), 1);
         end Generate_Movelist;
         
         temp_state : constant access Game_State_Data := state;
       begin
         state := new Game_State_Data(Battle);
-        state.player_one := Load_Fighter(Fighter_Options'Val(temp_state.p1_char_index));
-        state.player_two := Load_Fighter(Fighter_Options'Val(temp_state.p2_char_index));
-        state.stage := Load_Stage(temp_state.choosen_stage);
+        state.player_one := Load_Fighter(p1_fighter_id);
+        state.player_two := Load_Fighter(p2_fighter_id);
+        state.stage := Load_Stage(choosen_stage);
         state.player_one.pos := battle_player_one_starting_pos;
         state.player_two.pos := battle_player_two_starting_pos;
         state.player_one.hitpoints := battle_player_starting_health;
         state.player_two.hitpoints := battle_player_starting_health;
         Game_State_Pass_Player_Inputs(temp_state, state);
-        state.player_one_move_list := new Menu_Entry_Array'(Generate_Movelist(Fighter_Options'Val(temp_state.p1_char_index)));
-        state.player_two_move_list := new Menu_Entry_Array'(Generate_Movelist(Fighter_Options'Val(temp_state.p2_char_index)));
-        state.player_one_fighter_id := Fighter_Options'Val(temp_state.p1_char_index);
-        state.player_two_fighter_id := Fighter_Options'Val(temp_state.p2_char_index);
+        state.player_one_move_list := new Menu_Entry_Array'(Generate_Movelist(p1_fighter_id, battle_pause_movelist_x_offset));
+        state.player_two_move_list := new Menu_Entry_Array'(Generate_Movelist(p2_fighter_id, battle_pause_movelist_x_offset));
+        state.player_one_fighter_id := p1_fighter_id;
+        state.player_two_fighter_id := p2_fighter_id;
+        state.current_stage_id := choosen_stage;
         state.frame := 0;
       end Go_To_Battle;
+  end Go_To_Start_Battle;
+  
+  procedure Choose_Character is
+  begin
+    Go_To_Start_Battle(state.choosen_stage, Fighter_Options'Val(state.p1_char_index), Fighter_Options'Val(state.p2_char_index));
   end Choose_Character;
   
   procedure feet_touches_floor (F : in out Fighter.Fighter) is
@@ -609,6 +721,79 @@ procedure Fighting_Game_Ada is
     state.player_assignment_screen_open := false;
   end Exit_Assignment_Screen;
   
+  procedure Transition_To_Menu_State (tbackground : ALLEGRO_BITMAP_ACCESS; tlogo : ALLEGRO_BITMAP_ACCESS; logo_scale : Scalar; logo_pos : Position; prev_state : access Game_State_Data) is
+  begin
+    state := new Game_State_Data(Menu);
+    state.mbackground := tbackground;
+    state.mlogo := tlogo;
+    state.mlogo_scale := logo_scale;
+    state.mlogo_pos := logo_pos;
+    Game_State_Pass_Player_Inputs(prev_state, state);
+  end Transition_To_Menu_State;
+  
+  procedure Go_Back_To_Menu is
+  begin
+    Transition_To_Menu_State(al_load_bitmap(New_String(title_background_path)), al_load_bitmap(New_String(title_logo_path)), title_transition_scale_final, Position'(X => title_transition_move_x_final, Y => title_transition_move_y_final), state);
+  end Go_Back_To_Menu;
+  
+  procedure Go_Back_To_Character_Select (stage : Stage_Options) is
+    temp_state : constant Game_State_Data_Access := state;
+  begin
+    state := new Game_State_Data(Character_Select);
+    state.choosen_stage := stage;
+    Game_State_Pass_Player_Inputs(temp_state, state);
+  end Go_Back_To_Character_Select;
+  
+  procedure Battle_Over_Rematch is
+  begin
+    Go_To_Start_Battle(state.previous_stage_id, state.previous_player_one_fighter_id, state.previous_player_two_fighter_id);
+  end Battle_Over_Rematch;
+  
+  procedure Battle_Over_Return_Character_Select is
+  begin
+    Go_Back_To_Character_Select(state.previous_stage_id);
+  end Battle_Over_Return_Character_Select;
+  
+  procedure Battle_Over_Return_Stage_Select is
+  begin
+    Main_Menu_Go_To_Verses;
+  end Battle_Over_Return_Stage_Select;
+  
+  procedure Battle_Over_Quit_Menu is
+  begin
+    Go_Back_To_Menu;
+  end Battle_Over_Quit_Menu;
+  
+  procedure Battle_Stop_Sounds_Music is
+    stop_music_success : constant Boolean := Boolean(al_set_audio_stream_playing(state.stage.music, false));
+  begin
+    al_stop_samples;
+  end Battle_Stop_Sounds_Music;
+  
+  procedure Battle_Paused_Restart is
+  begin
+    Battle_Stop_Sounds_Music;
+    Go_To_Start_Battle(state.current_stage_id, state.player_one_fighter_id, state.player_two_fighter_id);
+  end Battle_Paused_Restart;
+  
+  procedure Battle_Paused_Go_Character_Select is
+  begin
+    Battle_Stop_Sounds_Music;
+    Go_Back_To_Character_Select(state.current_stage_id);
+  end Battle_Paused_Go_Character_Select;
+  
+  procedure Battle_Paused_Go_Stage_Select is
+  begin
+    Battle_Stop_Sounds_Music;
+    Main_Menu_Go_To_Verses;
+  end Battle_Paused_Go_Stage_Select;
+  
+  procedure Battle_Paused_Go_Menu is
+  begin
+    Battle_Stop_Sounds_Music;
+    Go_Back_To_Menu;
+  end Battle_Paused_Go_Menu;
+  
   procedure State_Input_Step is
     procedure Connect_Player (tran : access Game_Input_Translations; ojh : Opt_Joy_Handle_Access) is
     begin
@@ -749,7 +934,7 @@ procedure Fighting_Game_Ada is
                 if Input_Recognized(Ev, state.p1_input_state, Start_Press) then
                   if state.ts /= Start_Transition_To_Menu then
                     state.ts := Start_Transition_To_Menu;
-                    state.logo_y := Scalar(title_logo_slide_frames) * title_logo_y_move_by;
+                    state.logo_y := title_logo_slide_final_y;
                     state.frame := 0;
                   end if;
                 end if;
@@ -783,10 +968,7 @@ procedure Fighting_Game_Ada is
                           state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Right);
                           Play_Move_Sound;
                         end if;
-                        if Input_Recognized(Ev, Player_GIS, Start_Press) then
-                          Menu_Select_Entry(state.main_menu.all, state.menu_index);
-                        end if;
-                        if Input_Recognized(Ev, Player_GIS, Attack_1_Press) then
+                        if Input_Recognized(Ev, Player_GIS, Start_Press) or Input_Recognized(Ev, Player_GIS, Attack_4_Press) then
                           Menu_Select_Entry(state.main_menu.all, state.menu_index);
                         end if;
                       end if;
@@ -806,8 +988,12 @@ procedure Fighting_Game_Ada is
                   state.p1_stage_index := Menu_Move(state.stage_entries.all, state.p1_stage_index, Right);
                 end if;
                 
-                if Input_Recognized(Ev, state.p1_input_state, Attack_1_Press) then
+                if Input_Recognized(Ev, state.p1_input_state, Attack_4_Press) then
                   Menu_Select_Entry(state.stage_entries.all, state.p1_stage_index);
+                end if;
+
+                if Input_Recognized(Ev, state.p1_input_state, Attack_5_Press) then
+                  Go_Back_To_Menu;
                 end if;
               when Character_Select =>
                 Char_Select_Input:
@@ -824,8 +1010,12 @@ procedure Fighting_Game_Ada is
                         menu_index := Menu_Move(menu.all, menu_index, Right);
                       end if;
                       
-                      if Input_Recognized(Ev, GIS, Attack_1_Press) then
+                      if Input_Recognized(Ev, GIS, Attack_4_Press) then
                         Menu_Select_Entry(menu.all, menu_index);
+                      end if;
+                      
+                      if Input_Recognized(Ev, GIS, Attack_5_Press) then
+                        Main_Menu_Go_To_Verses;
                       end if;
                     end Player_Char_Select_Input;
                   begin
@@ -910,24 +1100,41 @@ procedure Fighting_Game_Ada is
                         end Battle_Input_Step;
                   end case;
                 else
-                  Unpause_Check:
+                  Pause_Menu_Input:
                     declare
-                      procedure Check_If_Player_Unpauses (GIS : Game_Input_State) is
-                      begin
-                        if Input_Recognized(Ev, GIS, Start_Press) then
-                          state.paused := Unpaused;
-                        end if;
-                      end Check_If_Player_Unpauses;
+                      pause_player_input_state : constant Game_Input_State := (if state.paused = Player_One then state.p1_input_state else state.p2_input_state);
                     begin
-                      if state.paused = Player_One then
-                        Check_If_Player_Unpauses(state.p1_input_state);
-                      elsif state.paused = Player_Two then
-                        Check_If_Player_Unpauses(state.p2_input_state);
+                      if Input_Recognized(Ev, pause_player_input_state, Up_Press) then
+                        state.pause_menu_options_index := Menu_Move(state.pause_menu_options.all, state.pause_menu_options_index, Up);
+                      elsif Input_Recognized(Ev, pause_player_input_state, Down_Press) then
+                        state.pause_menu_options_index := Menu_Move(state.pause_menu_options.all, state.pause_menu_options_index, Down);
+                      elsif Input_Recognized(Ev, pause_player_input_state, Attack_4_Press) then
+                        Menu_Select_Entry(state.pause_menu_options.all, state.pause_menu_options_index);
+                      elsif Input_Recognized(Ev, pause_player_input_state, Start_Press) then
+                        state.paused := Unpaused;
+                        state.pause_menu_options_index := 0;
                       end if;
-                    end Unpause_Check;
+                    end Pause_Menu_Input;
                 end if;
               when Battle_Over =>
-                null;
+                Battle_Over_Input:
+                  declare
+                    procedure Player_Decide_After_Battle (GIS : Game_Input_State) is
+                    begin
+                      if Input_Recognized(Ev, GIS, Up_Press) then
+                        state.after_battle_index := Menu_Move(state.after_battle_options.all, state.after_battle_index, Up);
+                      elsif Input_Recognized(Ev, GIS, Down_Press) then
+                        state.after_battle_index := Menu_Move(state.after_battle_options.all, state.after_battle_index, Down);
+                      elsif Input_Recognized(Ev, GIS, Attack_4_Press) then
+                        Menu_Select_Entry(state.after_battle_options.all, state.after_battle_index);
+                      end if;
+                    end Player_Decide_After_Battle;
+                  begin
+                    Player_Decide_After_Battle(state.p1_input_state);
+                    if state.GS = Battle_Over then
+                      Player_Decide_After_Battle(state.p2_input_state);
+                    end if;
+                  end Battle_Over_Input;
             end case;
           end if;
       end case;
@@ -938,6 +1145,25 @@ procedure Fighting_Game_Ada is
   end State_Input_Step;
   
   procedure State_Draw_Step is
+  
+    type General_Option_State is (Selected, Unselected);
+    
+    procedure Draw_General_Option (option_text : String; option_pos : Position; option_state : General_Option_State) is
+      color : ALLEGRO_COLOR;
+      x_coord : Scalar;
+    begin
+      case option_state is
+        when Selected =>
+          color := Selected_Text_Color;
+          x_coord := option_pos.X + draw_general_option_x_offset;
+        when Unselected =>
+          color := Unselected_Text_Color;
+          x_coord := option_pos.X;
+      end case;
+      
+      al_draw_text(basic_font, color, Float(x_coord), Float(option_pos.Y), 0, New_String(option_text));
+    end Draw_General_Option;
+    
   begin
     al_clear_to_color(Color_Black);
     
@@ -958,7 +1184,7 @@ procedure Fighting_Game_Ada is
             end case;
           end Icon_X_Offset;
           
-          function Icon_Bitmap (GIS : Game_Input_State) return access ALLEGRO_BITMAP is
+          function Icon_Bitmap (GIS : Game_Input_State) return ALLEGRO_BITMAP_ACCESS is
           begin
             if GIS.optional_joystick_handle.J = Joy then
               return player_assign_controller_icon_bitmap;
@@ -1020,9 +1246,9 @@ procedure Fighting_Game_Ada is
               begin
                 if e = state.menu_index then
                   -- need to indicate that this element is currently selected
-                  al_draw_text(basic_font, Selected_Text_Color, Float(elem.offset.X) + menu_selected_text_x_offset, Float(elem.offset.Y), 0, New_String(elem.text.all));
+                  Draw_General_Option(elem.text.all, elem.offset, Selected);
                 else
-                  al_draw_text(basic_font, Unselected_Text_Color, Float(elem.offset.X), Float(elem.offset.Y), 0, New_String(elem.text.all));
+                  Draw_General_Option(elem.text.all, elem.offset, Unselected);
                 end if;
               end Step;
           end loop;
@@ -1122,6 +1348,7 @@ procedure Fighting_Game_Ada is
                     al_draw_text(basic_font, Text_Color, Float(current_entry.offset.X), Float(current_entry.offset.Y), 0, New_String(current_entry.text.all & " -->  " & Move_Inputs_Text(I)));
                   end loop;
                 end Show_Move_Inputs;
+                
               begin
                 if state.paused = Player_One then
                   Show_Player_Who_Paused("Player One");
@@ -1130,14 +1357,23 @@ procedure Fighting_Game_Ada is
                   Show_Player_Who_Paused("Player Two");
                   Show_Move_Inputs(state.player_two_move_list, state.player_two.moves, state.player_two_fighter_id);
                 end if;
+                
+                for I in state.pause_menu_options.all'Range loop
+                  Draw_Pause_Menu_Option:
+                    declare
+                      mi : constant Menu_Entry := state.pause_menu_options(I);
+                    begin
+                      Draw_General_Option(mi.text.all, mi.offset, (if I = state.pause_menu_options_index then Selected else Unselected));
+                    end Draw_Pause_Menu_Option;
+                end loop;
               end Draw_Pause_Menu;
           end if;
         when Battle_Over =>
           Draw_Victory_Screen:
             declare
-              procedure Show_Winner (bitmap : access ALLEGRO_BITMAP) is
+              procedure Show_Winner (bitmap : ALLEGRO_BITMAP_ACCESS) is
               begin
-                al_draw_bitmap(bitmap, 600.0, 300.0, 0);
+                al_draw_bitmap(bitmap, 600.0, 250.0, 0);
               end Show_Winner;
             begin
               al_draw_bitmap(state.victory_bitmap, 0.0, 0.0, 0);
@@ -1147,6 +1383,16 @@ procedure Fighting_Game_Ada is
               elsif state.winner = Player_Two then
                 Show_Winner(player_assign_player_two_icon_bitmap);
               end if;
+              
+              for I in state.after_battle_options'Range loop
+                Draw_After_Battle_Options:
+                  declare
+                    mi : constant Menu_Entry := state.after_battle_options(I);
+                    gos : constant General_Option_State := (if I = state.after_battle_index then Selected else Unselected);
+                  begin
+                    Draw_General_Option(mi.text.all, mi.offset, gos);
+                  end Draw_After_Battle_Options;
+              end loop;
             end Draw_Victory_Screen;
       end case;
     end if;
@@ -1188,12 +1434,6 @@ begin
     menu_move_sound := al_load_sample(New_String(menu_sound_path));
     
     state := new Game_State_Data(Title);
-    
-    state.tbackground := al_load_bitmap(New_String(title_background_path));
-    state.tlogo := al_load_bitmap(New_String(title_logo_path));
-    state.tstartmsg := al_load_bitmap(New_String(title_start_message_path));
-    state.logo_x := 140.0;
-    state.logo_y := -90.0;
     
     player_assign_background_bitmap := al_load_bitmap(New_String(player_assign_background_path));
     player_assign_controller_icon_bitmap := al_load_bitmap(New_String(player_assign_controller_icon_path));
@@ -1240,15 +1480,7 @@ begin
                     declare
                       temp_state : constant access Game_State_Data := state;
                     begin
-                      state := new Game_State_Data(Menu);
-                      state.mbackground := temp_state.tbackground;
-                      state.mlogo := temp_state.tlogo;
-                      state.mlogo_scale := temp_state.logo_scale;
-                      state.mlogo_pos := Position'(X => temp_state.logo_x, Y => temp_state.logo_y);
-                      state.p1_connected := temp_state.p1_connected;
-                      state.p2_connected := temp_state.p2_connected;
-                      state.p1_input_state := temp_state.p1_input_state;
-                      state.p2_input_state := temp_state.p2_input_state;
+                      Transition_To_Menu_State(temp_state.tbackground, temp_state.tlogo, temp_state.logo_scale, Position'(X => temp_state.logo_x, Y => temp_state.logo_y), temp_state);
                     end PassOnData;
                 else
                   state.logo_scale := state.logo_scale + title_transition_scale_amount;
@@ -1296,10 +1528,15 @@ begin
                         end Player_Won;
                         
                         procedure On_Player_Win (result : Who_Won) is
+                          temp_state : constant Game_State_Data_Access := state;
                         begin
+                          Battle_Stop_Sounds_Music;
                           state := new Game_State_Data(Battle_Over);
-                          al_stop_samples;
                           state.winner := result;
+                          state.previous_stage_id := temp_state.current_stage_id;
+                          state.previous_player_one_fighter_id := temp_state.player_one_fighter_id;
+                          state.previous_player_two_fighter_id := temp_state.player_two_fighter_id;
+                          Game_State_Pass_Player_Inputs(temp_state, state);
                           state.frame := 0;
                         end On_Player_Win;
                         

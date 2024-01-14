@@ -24,7 +24,7 @@ package allegro5_bitmap_lock_h is
    with Convention => C_Pass_By_Copy;  -- /usr/include/allegro5/bitmap_lock.h:24
 
    function al_lock_bitmap
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       format : int;
       flags : int) return access ALLEGRO_LOCKED_REGION  -- /usr/include/allegro5/bitmap_lock.h:32
    with Import => True, 
@@ -32,7 +32,7 @@ package allegro5_bitmap_lock_h is
         External_Name => "al_lock_bitmap";
 
    function al_lock_bitmap_region
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       x : int;
       y : int;
       width : int;
@@ -43,13 +43,13 @@ package allegro5_bitmap_lock_h is
         Convention => C, 
         External_Name => "al_lock_bitmap_region";
 
-   function al_lock_bitmap_blocked (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP; flags : int) return access ALLEGRO_LOCKED_REGION  -- /usr/include/allegro5/bitmap_lock.h:34
+   function al_lock_bitmap_blocked (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS; flags : int) return access ALLEGRO_LOCKED_REGION  -- /usr/include/allegro5/bitmap_lock.h:34
    with Import => True, 
         Convention => C, 
         External_Name => "al_lock_bitmap_blocked";
 
    function al_lock_bitmap_region_blocked
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       x_block : int;
       y_block : int;
       width_block : int;
@@ -59,12 +59,12 @@ package allegro5_bitmap_lock_h is
         Convention => C, 
         External_Name => "al_lock_bitmap_region_blocked";
 
-   procedure al_unlock_bitmap (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP)  -- /usr/include/allegro5/bitmap_lock.h:37
+   procedure al_unlock_bitmap (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS)  -- /usr/include/allegro5/bitmap_lock.h:37
    with Import => True, 
         Convention => C, 
         External_Name => "al_unlock_bitmap";
 
-   function al_is_bitmap_locked (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP) return Extensions.bool  -- /usr/include/allegro5/bitmap_lock.h:38
+   function al_is_bitmap_locked (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS) return Extensions.bool  -- /usr/include/allegro5/bitmap_lock.h:38
    with Import => True, 
         Convention => C, 
         External_Name => "al_is_bitmap_locked";

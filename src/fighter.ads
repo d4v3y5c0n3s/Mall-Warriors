@@ -16,7 +16,7 @@ package Fighter is
       when none =>
         null;
       when has_bitmap =>
-        bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+        bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
     end case;
   end record;
   type Sprite_Access is access Sprite;

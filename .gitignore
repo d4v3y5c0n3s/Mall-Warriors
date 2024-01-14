@@ -8,3 +8,5 @@ fighting_game_todo.txt
 /assets/*.mmpz
 /assets/*.mmpz.bak
 /assets/*.aup
+*~
+/src/*~

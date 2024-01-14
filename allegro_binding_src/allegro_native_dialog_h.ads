@@ -41,7 +41,7 @@ package allegro_native_dialog_h is
       caption : Interfaces.C.Strings.chars_ptr;  -- addons/native_dialog/allegro5/allegro_native_dialog.h:51
       id : aliased x86_64_linux_gnu_bits_stdint_uintn_h.uint16_t;  -- addons/native_dialog/allegro5/allegro_native_dialog.h:52
       flags : aliased int;  -- addons/native_dialog/allegro5/allegro_native_dialog.h:53
-      icon : access allegro5_bitmap_h.ALLEGRO_BITMAP;  -- addons/native_dialog/allegro5/allegro_native_dialog.h:54
+      icon : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;  -- addons/native_dialog/allegro5/allegro_native_dialog.h:54
    end record
    with Convention => C_Pass_By_Copy;  -- addons/native_dialog/allegro5/allegro_native_dialog.h:50
 
@@ -142,7 +142,7 @@ package allegro_native_dialog_h is
       title : Interfaces.C.Strings.chars_ptr;
       id : x86_64_linux_gnu_bits_stdint_uintn_h.uint16_t;
       flags : int;
-      icon : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+      icon : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       submenu : access ALLEGRO_MENU) return int  -- addons/native_dialog/allegro5/allegro_native_dialog.h:85
    with Import => True, 
         Convention => C, 
@@ -154,7 +154,7 @@ package allegro_native_dialog_h is
       title : Interfaces.C.Strings.chars_ptr;
       id : x86_64_linux_gnu_bits_stdint_uintn_h.uint16_t;
       flags : int;
-      icon : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+      icon : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       submenu : access ALLEGRO_MENU) return int  -- addons/native_dialog/allegro5/allegro_native_dialog.h:87
    with Import => True, 
         Convention => C, 
@@ -207,7 +207,7 @@ package allegro_native_dialog_h is
         Convention => C, 
         External_Name => "al_set_menu_item_flags";
 
-   function al_get_menu_item_icon (menu : access ALLEGRO_MENU; pos : int) return access allegro5_bitmap_h.ALLEGRO_BITMAP  -- addons/native_dialog/allegro5/allegro_native_dialog.h:99
+   function al_get_menu_item_icon (menu : access ALLEGRO_MENU; pos : int) return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS  -- addons/native_dialog/allegro5/allegro_native_dialog.h:99
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_menu_item_icon";
@@ -215,7 +215,7 @@ package allegro_native_dialog_h is
    procedure al_set_menu_item_icon
      (menu : access ALLEGRO_MENU;
       pos : int;
-      icon : access allegro5_bitmap_h.ALLEGRO_BITMAP)  -- addons/native_dialog/allegro5/allegro_native_dialog.h:100
+      icon : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS)  -- addons/native_dialog/allegro5/allegro_native_dialog.h:100
    with Import => True, 
         Convention => C, 
         External_Name => "al_set_menu_item_icon";

@@ -11,6 +11,8 @@ package allegro5_bitmap_h is
   --  
 
    type ALLEGRO_BITMAP is null record;   -- incomplete struct
+   
+   type ALLEGRO_BITMAP_ACCESS is access ALLEGRO_BITMAP;
 
   -- * Bitmap flags
   --  
@@ -44,32 +46,32 @@ package allegro5_bitmap_h is
         Convention => C, 
         External_Name => "al_add_new_bitmap_flag";
 
-   function al_get_bitmap_width (bitmap : access ALLEGRO_BITMAP) return int  -- /usr/include/allegro5/bitmap.h:47
+   function al_get_bitmap_width (bitmap : ALLEGRO_BITMAP_ACCESS) return int  -- /usr/include/allegro5/bitmap.h:47
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_bitmap_width";
 
-   function al_get_bitmap_height (bitmap : access ALLEGRO_BITMAP) return int  -- /usr/include/allegro5/bitmap.h:48
+   function al_get_bitmap_height (bitmap : ALLEGRO_BITMAP_ACCESS) return int  -- /usr/include/allegro5/bitmap.h:48
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_bitmap_height";
 
-   function al_get_bitmap_format (bitmap : access ALLEGRO_BITMAP) return int  -- /usr/include/allegro5/bitmap.h:49
+   function al_get_bitmap_format (bitmap : ALLEGRO_BITMAP_ACCESS) return int  -- /usr/include/allegro5/bitmap.h:49
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_bitmap_format";
 
-   function al_get_bitmap_flags (bitmap : access ALLEGRO_BITMAP) return int  -- /usr/include/allegro5/bitmap.h:50
+   function al_get_bitmap_flags (bitmap : ALLEGRO_BITMAP_ACCESS) return int  -- /usr/include/allegro5/bitmap.h:50
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_bitmap_flags";
 
-   function al_create_bitmap (w : int; h : int) return access ALLEGRO_BITMAP  -- /usr/include/allegro5/bitmap.h:57
+   function al_create_bitmap (w : int; h : int) return ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/bitmap.h:57
    with Import => True, 
         Convention => C, 
         External_Name => "al_create_bitmap";
 
-   procedure al_destroy_bitmap (bitmap : access ALLEGRO_BITMAP)  -- /usr/include/allegro5/bitmap.h:58
+   procedure al_destroy_bitmap (bitmap : ALLEGRO_BITMAP_ACCESS)  -- /usr/include/allegro5/bitmap.h:58
    with Import => True, 
         Convention => C, 
         External_Name => "al_destroy_bitmap";
@@ -91,7 +93,7 @@ package allegro5_bitmap_h is
         External_Name => "al_put_blended_pixel";
 
    function al_get_pixel
-     (bitmap : access ALLEGRO_BITMAP;
+     (bitmap : ALLEGRO_BITMAP_ACCESS;
       x : int;
       y : int) return allegro5_color_h.ALLEGRO_COLOR  -- /usr/include/allegro5/bitmap.h:62
    with Import => True, 
@@ -99,7 +101,7 @@ package allegro5_bitmap_h is
         External_Name => "al_get_pixel";
 
   -- Masking  
-   procedure al_convert_mask_to_alpha (bitmap : access ALLEGRO_BITMAP; mask_color : allegro5_color_h.ALLEGRO_COLOR)  -- /usr/include/allegro5/bitmap.h:65
+   procedure al_convert_mask_to_alpha (bitmap : ALLEGRO_BITMAP_ACCESS; mask_color : allegro5_color_h.ALLEGRO_COLOR)  -- /usr/include/allegro5/bitmap.h:65
    with Import => True, 
         Convention => C, 
         External_Name => "al_convert_mask_to_alpha";
@@ -131,38 +133,38 @@ package allegro5_bitmap_h is
 
   -- Sub bitmaps  
    function al_create_sub_bitmap
-     (parent : access ALLEGRO_BITMAP;
+     (parent : ALLEGRO_BITMAP_ACCESS;
       x : int;
       y : int;
       w : int;
-      h : int) return access ALLEGRO_BITMAP  -- /usr/include/allegro5/bitmap.h:84
+      h : int) return ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/bitmap.h:84
    with Import => True, 
         Convention => C, 
         External_Name => "al_create_sub_bitmap";
 
-   function al_is_sub_bitmap (bitmap : access ALLEGRO_BITMAP) return Extensions.bool  -- /usr/include/allegro5/bitmap.h:85
+   function al_is_sub_bitmap (bitmap : ALLEGRO_BITMAP_ACCESS) return Extensions.bool  -- /usr/include/allegro5/bitmap.h:85
    with Import => True, 
         Convention => C, 
         External_Name => "al_is_sub_bitmap";
 
-   function al_get_parent_bitmap (bitmap : access ALLEGRO_BITMAP) return access ALLEGRO_BITMAP  -- /usr/include/allegro5/bitmap.h:86
+   function al_get_parent_bitmap (bitmap : ALLEGRO_BITMAP_ACCESS) return ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/bitmap.h:86
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_parent_bitmap";
 
-   function al_get_bitmap_x (bitmap : access ALLEGRO_BITMAP) return int  -- /usr/include/allegro5/bitmap.h:87
+   function al_get_bitmap_x (bitmap : ALLEGRO_BITMAP_ACCESS) return int  -- /usr/include/allegro5/bitmap.h:87
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_bitmap_x";
 
-   function al_get_bitmap_y (bitmap : access ALLEGRO_BITMAP) return int  -- /usr/include/allegro5/bitmap.h:88
+   function al_get_bitmap_y (bitmap : ALLEGRO_BITMAP_ACCESS) return int  -- /usr/include/allegro5/bitmap.h:88
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_bitmap_y";
 
    procedure al_reparent_bitmap
-     (bitmap : access ALLEGRO_BITMAP;
-      parent : access ALLEGRO_BITMAP;
+     (bitmap : ALLEGRO_BITMAP_ACCESS;
+      parent : ALLEGRO_BITMAP_ACCESS;
       x : int;
       y : int;
       w : int;
@@ -172,12 +174,12 @@ package allegro5_bitmap_h is
         External_Name => "al_reparent_bitmap";
 
   -- Miscellaneous  
-   function al_clone_bitmap (bitmap : access ALLEGRO_BITMAP) return access ALLEGRO_BITMAP  -- /usr/include/allegro5/bitmap.h:93
+   function al_clone_bitmap (bitmap : ALLEGRO_BITMAP_ACCESS) return ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/bitmap.h:93
    with Import => True, 
         Convention => C, 
         External_Name => "al_clone_bitmap";
 
-   procedure al_convert_bitmap (bitmap : access ALLEGRO_BITMAP)  -- /usr/include/allegro5/bitmap.h:94
+   procedure al_convert_bitmap (bitmap : ALLEGRO_BITMAP_ACCESS)  -- /usr/include/allegro5/bitmap.h:94
    with Import => True, 
         Convention => C, 
         External_Name => "al_convert_bitmap";

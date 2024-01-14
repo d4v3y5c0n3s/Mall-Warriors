@@ -161,7 +161,7 @@ package allegro5_display_h is
         Convention => C, 
         External_Name => "al_get_current_display";
 
-   procedure al_set_target_bitmap (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP)  -- /usr/include/allegro5/display.h:134
+   procedure al_set_target_bitmap (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS)  -- /usr/include/allegro5/display.h:134
    with Import => True, 
         Convention => C, 
         External_Name => "al_set_target_bitmap";
@@ -171,12 +171,12 @@ package allegro5_display_h is
         Convention => C, 
         External_Name => "al_set_target_backbuffer";
 
-   function al_get_backbuffer (display : access ALLEGRO_DISPLAY) return access allegro5_bitmap_h.ALLEGRO_BITMAP  -- /usr/include/allegro5/display.h:136
+   function al_get_backbuffer (display : access ALLEGRO_DISPLAY) return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/display.h:136
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_backbuffer";
 
-   function al_get_target_bitmap return access allegro5_bitmap_h.ALLEGRO_BITMAP  -- /usr/include/allegro5/display.h:137
+   function al_get_target_bitmap return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/display.h:137
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_target_bitmap";
@@ -208,7 +208,7 @@ package allegro5_display_h is
         Convention => C, 
         External_Name => "al_update_display_region";
 
-   function al_is_compatible_bitmap (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP) return Extensions.bool  -- /usr/include/allegro5/display.h:143
+   function al_is_compatible_bitmap (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS) return Extensions.bool  -- /usr/include/allegro5/display.h:143
    with Import => True, 
         Convention => C, 
         External_Name => "al_is_compatible_bitmap";
@@ -223,7 +223,7 @@ package allegro5_display_h is
         Convention => C, 
         External_Name => "al_get_display_event_source";
 
-   procedure al_set_display_icon (display : access ALLEGRO_DISPLAY; icon : access allegro5_bitmap_h.ALLEGRO_BITMAP)  -- /usr/include/allegro5/display.h:149
+   procedure al_set_display_icon (display : access ALLEGRO_DISPLAY; icon : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS)  -- /usr/include/allegro5/display.h:149
    with Import => True, 
         Convention => C, 
         External_Name => "al_set_display_icon";

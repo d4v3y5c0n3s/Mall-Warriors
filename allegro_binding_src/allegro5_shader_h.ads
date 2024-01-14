@@ -92,7 +92,7 @@ package allegro5_shader_h is
 
    function al_set_shader_sampler
      (name : Interfaces.C.Strings.chars_ptr;
-      bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+      bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       unit : int) return Extensions.bool  -- /usr/include/allegro5/shader.h:60
    with Import => True, 
         Convention => C, 

@@ -9,8 +9,9 @@ package allegro5_bitmap_draw_h is
 
   -- Flags for the blitting functions  
   -- Blitting  
+
    procedure al_draw_bitmap
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       dx : float;
       dy : float;
       flags : int)  -- /usr/include/allegro5/bitmap_draw.h:18
@@ -19,7 +20,7 @@ package allegro5_bitmap_draw_h is
         External_Name => "al_draw_bitmap";
 
    procedure al_draw_bitmap_region
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       sx : float;
       sy : float;
       sw : float;
@@ -32,7 +33,7 @@ package allegro5_bitmap_draw_h is
         External_Name => "al_draw_bitmap_region";
 
    procedure al_draw_scaled_bitmap
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       sx : float;
       sy : float;
       sw : float;
@@ -47,7 +48,7 @@ package allegro5_bitmap_draw_h is
         External_Name => "al_draw_scaled_bitmap";
 
    procedure al_draw_rotated_bitmap
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       cx : float;
       cy : float;
       dx : float;
@@ -59,7 +60,7 @@ package allegro5_bitmap_draw_h is
         External_Name => "al_draw_rotated_bitmap";
 
    procedure al_draw_scaled_rotated_bitmap
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       cx : float;
       cy : float;
       dx : float;
@@ -74,7 +75,7 @@ package allegro5_bitmap_draw_h is
 
   -- Tinted blitting  
    procedure al_draw_tinted_bitmap
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       tint : allegro5_color_h.ALLEGRO_COLOR;
       dx : float;
       dy : float;
@@ -84,7 +85,7 @@ package allegro5_bitmap_draw_h is
         External_Name => "al_draw_tinted_bitmap";
 
    procedure al_draw_tinted_bitmap_region
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       tint : allegro5_color_h.ALLEGRO_COLOR;
       sx : float;
       sy : float;
@@ -98,7 +99,7 @@ package allegro5_bitmap_draw_h is
         External_Name => "al_draw_tinted_bitmap_region";
 
    procedure al_draw_tinted_scaled_bitmap
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       tint : allegro5_color_h.ALLEGRO_COLOR;
       sx : float;
       sy : float;
@@ -114,7 +115,7 @@ package allegro5_bitmap_draw_h is
         External_Name => "al_draw_tinted_scaled_bitmap";
 
    procedure al_draw_tinted_rotated_bitmap
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       tint : allegro5_color_h.ALLEGRO_COLOR;
       cx : float;
       cy : float;
@@ -127,7 +128,7 @@ package allegro5_bitmap_draw_h is
         External_Name => "al_draw_tinted_rotated_bitmap";
 
    procedure al_draw_tinted_scaled_rotated_bitmap
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       tint : allegro5_color_h.ALLEGRO_COLOR;
       cx : float;
       cy : float;
@@ -142,7 +143,7 @@ package allegro5_bitmap_draw_h is
         External_Name => "al_draw_tinted_scaled_rotated_bitmap";
 
    procedure al_draw_tinted_scaled_rotated_bitmap_region
-     (bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       sx : float;
       sy : float;
       sw : float;

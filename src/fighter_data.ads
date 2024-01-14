@@ -15,7 +15,7 @@ package Fighter_Data is
   
   function Fighter_Name (F : Fighter_Options) return String;
   
-  function Fighter_Icon (F : Fighter_Options) return access ALLEGRO_BITMAP;
+  function Fighter_Icon (F : Fighter_Options) return ALLEGRO_BITMAP_ACCESS;
   
   function Fighter_Move_Names (F : Fighter_Options) return Fighter_Move_Name_Array;
   

@@ -87,7 +87,7 @@ package allegro_video_h is
         Convention => C, 
         External_Name => "al_get_video_scaled_height";
 
-   function al_get_video_frame (video : access ALLEGRO_VIDEO) return access allegro5_bitmap_h.ALLEGRO_BITMAP  -- addons/video/allegro5/allegro_video.h:66
+   function al_get_video_frame (video : access ALLEGRO_VIDEO) return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS  -- addons/video/allegro5/allegro_video.h:66
    with Import => True, 
         Convention => C, 
         External_Name => "al_get_video_frame";

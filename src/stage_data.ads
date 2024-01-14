@@ -7,7 +7,7 @@ package Stage_Data is
   type Stage_Options is (Test1, Test2);
   
   type Stage_Assets is record
-    background : access ALLEGRO_BITMAP := new ALLEGRO_BITMAP;
+    background : ALLEGRO_BITMAP_ACCESS := new ALLEGRO_BITMAP;
     music : access ALLEGRO_AUDIO_STREAM := new ALLEGRO_AUDIO_STREAM;
   end record;
   
@@ -15,6 +15,6 @@ package Stage_Data is
   
   function Stage_Name (S : Stage_Options) return String;
   
-  function Stage_Icon (S : Stage_Options) return access ALLEGRO_BITMAP;
+  function Stage_Icon (S : Stage_Options) return ALLEGRO_BITMAP_ACCESS;
   
 end Stage_Data;

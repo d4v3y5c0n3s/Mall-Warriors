@@ -31,7 +31,7 @@ package body Stage_Data is
     return S'Image;
   end Stage_Name;
   
-  function Stage_Icon (S : Stage_Options) return access ALLEGRO_BITMAP is
+  function Stage_Icon (S : Stage_Options) return ALLEGRO_BITMAP_ACCESS is
   begin
     return al_load_bitmap(New_String("assets/temp_stage_char_icon.png"));
   end Stage_Icon;

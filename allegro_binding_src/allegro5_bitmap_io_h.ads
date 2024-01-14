@@ -14,16 +14,16 @@ package allegro5_bitmap_io_h is
 
   -- was a bitmap flag in 5.0  
   -- was a bitmap flag in 5.0  
-   type ALLEGRO_IIO_LOADER_FUNCTION is access function (arg1 : Interfaces.C.Strings.chars_ptr; arg2 : int) return access allegro5_bitmap_h.ALLEGRO_BITMAP
+   type ALLEGRO_IIO_LOADER_FUNCTION is access function (arg1 : Interfaces.C.Strings.chars_ptr; arg2 : int) return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS
    with Convention => C;  -- /usr/include/allegro5/bitmap_io.h:20
 
-   type ALLEGRO_IIO_FS_LOADER_FUNCTION is access function (arg1 : access allegro5_file_h.ALLEGRO_FILE; arg2 : int) return access allegro5_bitmap_h.ALLEGRO_BITMAP
+   type ALLEGRO_IIO_FS_LOADER_FUNCTION is access function (arg1 : access allegro5_file_h.ALLEGRO_FILE; arg2 : int) return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS
    with Convention => C;  -- /usr/include/allegro5/bitmap_io.h:21
 
-   type ALLEGRO_IIO_SAVER_FUNCTION is access function (arg1 : Interfaces.C.Strings.chars_ptr; arg2 : access allegro5_bitmap_h.ALLEGRO_BITMAP) return Extensions.bool
+   type ALLEGRO_IIO_SAVER_FUNCTION is access function (arg1 : Interfaces.C.Strings.chars_ptr; arg2 : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS) return Extensions.bool
    with Convention => C;  -- /usr/include/allegro5/bitmap_io.h:22
 
-   type ALLEGRO_IIO_FS_SAVER_FUNCTION is access function (arg1 : access allegro5_file_h.ALLEGRO_FILE; arg2 : access allegro5_bitmap_h.ALLEGRO_BITMAP) return Extensions.bool
+   type ALLEGRO_IIO_FS_SAVER_FUNCTION is access function (arg1 : access allegro5_file_h.ALLEGRO_FILE; arg2 : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS) return Extensions.bool
    with Convention => C;  -- /usr/include/allegro5/bitmap_io.h:23
 
    type ALLEGRO_IIO_IDENTIFIER_FUNCTION is access function (arg1 : access allegro5_file_h.ALLEGRO_FILE) return Extensions.bool
@@ -54,17 +54,17 @@ package allegro5_bitmap_io_h is
         Convention => C, 
         External_Name => "al_register_bitmap_identifier";
 
-   function al_load_bitmap (filename : Interfaces.C.Strings.chars_ptr) return access allegro5_bitmap_h.ALLEGRO_BITMAP  -- /usr/include/allegro5/bitmap_io.h:32
+   function al_load_bitmap (filename : Interfaces.C.Strings.chars_ptr) return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/bitmap_io.h:32
    with Import => True, 
         Convention => C, 
         External_Name => "al_load_bitmap";
 
-   function al_load_bitmap_flags (filename : Interfaces.C.Strings.chars_ptr; flags : int) return access allegro5_bitmap_h.ALLEGRO_BITMAP  -- /usr/include/allegro5/bitmap_io.h:33
+   function al_load_bitmap_flags (filename : Interfaces.C.Strings.chars_ptr; flags : int) return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/bitmap_io.h:33
    with Import => True, 
         Convention => C, 
         External_Name => "al_load_bitmap_flags";
 
-   function al_load_bitmap_f (fp : access allegro5_file_h.ALLEGRO_FILE; ident : Interfaces.C.Strings.chars_ptr) return access allegro5_bitmap_h.ALLEGRO_BITMAP  -- /usr/include/allegro5/bitmap_io.h:34
+   function al_load_bitmap_f (fp : access allegro5_file_h.ALLEGRO_FILE; ident : Interfaces.C.Strings.chars_ptr) return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/bitmap_io.h:34
    with Import => True, 
         Convention => C, 
         External_Name => "al_load_bitmap_f";
@@ -72,12 +72,12 @@ package allegro5_bitmap_io_h is
    function al_load_bitmap_flags_f
      (fp : access allegro5_file_h.ALLEGRO_FILE;
       ident : Interfaces.C.Strings.chars_ptr;
-      flags : int) return access allegro5_bitmap_h.ALLEGRO_BITMAP  -- /usr/include/allegro5/bitmap_io.h:35
+      flags : int) return allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS  -- /usr/include/allegro5/bitmap_io.h:35
    with Import => True, 
         Convention => C, 
         External_Name => "al_load_bitmap_flags_f";
 
-   function al_save_bitmap (filename : Interfaces.C.Strings.chars_ptr; bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP) return Extensions.bool  -- /usr/include/allegro5/bitmap_io.h:36
+   function al_save_bitmap (filename : Interfaces.C.Strings.chars_ptr; bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS) return Extensions.bool  -- /usr/include/allegro5/bitmap_io.h:36
    with Import => True, 
         Convention => C, 
         External_Name => "al_save_bitmap";
@@ -85,7 +85,7 @@ package allegro5_bitmap_io_h is
    function al_save_bitmap_f
      (fp : access allegro5_file_h.ALLEGRO_FILE;
       ident : Interfaces.C.Strings.chars_ptr;
-      bitmap : access allegro5_bitmap_h.ALLEGRO_BITMAP) return Extensions.bool  -- /usr/include/allegro5/bitmap_io.h:37
+      bitmap : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS) return Extensions.bool  -- /usr/include/allegro5/bitmap_io.h:37
    with Import => True, 
         Convention => C, 
         External_Name => "al_save_bitmap_f";

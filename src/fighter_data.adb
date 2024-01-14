@@ -13,7 +13,7 @@ package body Fighter_Data is
       when Shambler =>
         bitmap_path := new String'("assets/shambler.png");
       when Test =>
-        bitmap_path := new String'("assets/shambler.png");
+        bitmap_path := new String'("assets/test_fighter.png");
         
         data.sounds(0).value := al_load_sample(New_String("assets/test_audio.flac"));
         
@@ -258,9 +258,16 @@ package body Fighter_Data is
     return F'Image;
   end Fighter_Name;
   
-  function Fighter_Icon (F : Fighter_Options) return access ALLEGRO_BITMAP is
+  function Fighter_Icon (F : Fighter_Options) return ALLEGRO_BITMAP_ACCESS is
+    load_str : String := (
+    case F is
+      when Shambler =>
+        "assets/temp_stage_char_icon.png",
+      when Test =>
+        "assets/test_fighter_icon.png"
+    );
   begin
-    return al_load_bitmap(New_String("assets/temp_stage_char_icon.png"));
+    return al_load_bitmap(New_String(load_str));
   end Fighter_Icon;
   
   function Fighter_Move_Names (F : Fighter_Options) return Fighter_Move_Name_Array is

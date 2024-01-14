@@ -51,7 +51,7 @@ package allegro_font_h is
         External_Name => "al_load_font";
 
    function al_grab_font_from_bitmap
-     (bmp : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (bmp : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       n : int;
       ranges : access int) return access ALLEGRO_FONT  -- addons/font/allegro5/allegro_font.h:83
    with Import => True, 

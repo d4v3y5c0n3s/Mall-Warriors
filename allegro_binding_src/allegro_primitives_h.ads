@@ -165,7 +165,7 @@ package allegro_primitives_h is
    function al_draw_prim
      (vtxs : System.Address;
       decl : access constant ALLEGRO_VERTEX_DECL;
-      texture : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+      texture : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       start : int;
       c_end : int;
       c_type : int) return int  -- addons/primitives/allegro5/allegro_primitives.h:170
@@ -176,7 +176,7 @@ package allegro_primitives_h is
    function al_draw_indexed_prim
      (vtxs : System.Address;
       decl : access constant ALLEGRO_VERTEX_DECL;
-      texture : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+      texture : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       indices : access int;
       num_vtx : int;
       c_type : int) return int  -- addons/primitives/allegro5/allegro_primitives.h:171
@@ -186,7 +186,7 @@ package allegro_primitives_h is
 
    function al_draw_vertex_buffer
      (vertex_buffer : access ALLEGRO_VERTEX_BUFFER;
-      texture : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+      texture : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       start : int;
       c_end : int;
       c_type : int) return int  -- addons/primitives/allegro5/allegro_primitives.h:172
@@ -196,7 +196,7 @@ package allegro_primitives_h is
 
    function al_draw_indexed_buffer
      (vertex_buffer : access ALLEGRO_VERTEX_BUFFER;
-      texture : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+      texture : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       index_buffer : access ALLEGRO_INDEX_BUFFER;
       start : int;
       c_end : int;

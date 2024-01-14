@@ -35,7 +35,7 @@ package allegro5_mouse_cursor_h is
    with Convention => C;  -- /usr/include/allegro5/mouse_cursor.h:12
 
    function al_create_mouse_cursor
-     (sprite : access allegro5_bitmap_h.ALLEGRO_BITMAP;
+     (sprite : allegro5_bitmap_h.ALLEGRO_BITMAP_ACCESS;
       xfocus : int;
       yfocus : int) return access ALLEGRO_MOUSE_CURSOR  -- /usr/include/allegro5/mouse_cursor.h:41
    with Import => True, 
