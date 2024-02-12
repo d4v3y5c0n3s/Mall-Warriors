@@ -66,7 +66,7 @@ package Globals is
     optional_joystick_handle : Opt_Joy_Handle_Access;
   end record;
   
-  default_joystick_axis_min : constant Float := 0.3;
+  default_joystick_axis_min : constant Float := 0.4;
   default_joystick_axis_max : constant Float := 1.0;
   
   default_trigger_axis_min : constant Float := -0.2;
@@ -76,7 +76,7 @@ package Globals is
   subtype input_ids is input_tree_id range up .. atk_6;
   
   frame_duration : constant Duration := 1.0 / 60.0;
-  input_buffer_frames : constant Natural := 28;
+  input_buffer_frames : constant Natural := 70;
   input_buffer_max_button_delay : constant Natural := 12;
   
   universal_blockstun : constant Natural := 5;
@@ -84,10 +84,17 @@ package Globals is
   counter_grab_pushback : constant Scalar := 20.0;
   counter_grab_push_duration : constant Natural := 2;
   
+  type Tree_End_Conditions is record
+    works_standing : Boolean := true;
+    works_crouching : Boolean := true;
+    works_midair : Boolean := true;
+  end record;
+  
   type Input_Tree_Node(ID : input_tree_id) is record
     case ID is
       when tree_end =>
         key : Natural;
+        condition : Tree_End_Conditions;
       when others =>
         null;
     end case;
@@ -126,9 +133,8 @@ package Globals is
     Crouched,
     Grabbing,
     Grabbed,
-    Forward_Walk,
-    Backwards_Walk,
-    In_Air,
+    Walk,
+    Jump,
     Blocked_Attack,
     Hit_By_Attack
   );

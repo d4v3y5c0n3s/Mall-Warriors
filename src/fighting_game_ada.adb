@@ -28,6 +28,7 @@ with Fighter_Data; use Fighter_Data;
 with Control_Bindings; use Control_Bindings;
 with Move;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Projectile;
 
 procedure Fighting_Game_Ada is
   
@@ -435,6 +436,8 @@ procedure Fighting_Game_Ada is
   battle_player_two_starting_pos : constant Position := Position'(600.0, 400.0);
   battle_player_starting_health : constant Integer := 100;
   battle_pause_movelist_x_offset : constant Scalar := 300.0;
+  battle_pause_music_lower_volume : constant Float := 0.4;
+  battle_unpause_music_increase_volume : constant Float := 1.0;
   
   frame_start_time : Time := Clock;
   Color_Black : ALLEGRO_COLOR;
@@ -472,7 +475,7 @@ procedure Fighting_Game_Ada is
   begin
     Go_To_Stage_Select:
       declare
-        temp_state : access Game_State_Data := state;
+        temp_state : constant Game_State_Data_Access := state;
       begin
         state := new Game_State_Data(Stage_Select);
         Game_State_Pass_Player_Inputs(temp_state, state);
@@ -490,7 +493,7 @@ procedure Fighting_Game_Ada is
   begin
     Go_To_Character_Select:
       declare
-        temp_state : access Game_State_Data := state;
+        temp_state : constant Game_State_Data_Access := state;
       begin
         Go_Back_To_Character_Select(Stage_Options'Val(temp_state.p1_stage_index));
       end Go_To_Character_Select;
@@ -559,11 +562,14 @@ procedure Fighting_Game_Ada is
   procedure Collide_Attacks_With (Attacker : in out Fighter.Fighter; Defender : in out Fighter.Fighter) is
       index : Fighter.Active_Hitboxes.Cursor := Fighter.Active_Hitboxes.First(Attacker.attack_hitboxes);
       elem : Hitbox;
-      shape : Circle;
+      proj_index : Fighter.Active_Projectiles_List.Cursor := Fighter.Active_Projectiles_List.First(Attacker.active_projectiles);
+      proj_elem : Projectile.Projectile;
       
       procedure Mark_Matching_As_Hit (hit_id : Integer) is
         cursor : Fighter.Active_Hitboxes.Cursor := Fighter.Active_Hitboxes.First(Attacker.attack_hitboxes);
         temp_hitbox : Hitbox;
+        proj_cursor : Fighter.Active_Projectiles_List.Cursor := Fighter.Active_Projectiles_List.First(Attacker.active_projectiles);
+        temp_phbs : Projectile.Projectile_Hitboxes.List;
       begin
         while Fighter.Active_Hitboxes.Has_Element(cursor) loop
           temp_hitbox := Fighter.Active_Hitboxes.Element(cursor);
@@ -575,23 +581,53 @@ procedure Fighting_Game_Ada is
           
           cursor := Fighter.Active_Hitboxes.Next(cursor);
         end loop;
+        
+        while Fighter.Active_Projectiles_List.Has_Element(proj_cursor) loop
+          temp_phbs := Fighter.Active_Projectiles_List.Element(proj_cursor).hitboxes;
+          
+          Iterate_Over_Projectile_Hitboxes:
+            declare
+              PHB_Cursor : Projectile.Projectile_Hitboxes.Cursor := Projectile.Projectile_Hitboxes.First(temp_phbs);
+              PHB_Elem : Hitbox;
+            begin
+              while Projectile.Projectile_Hitboxes.Has_Element(PHB_Cursor) loop
+                PHB_Elem := Projectile.Projectile_Hitboxes.Element(PHB_Cursor);
+                
+                if PHB_Elem.identity = hit_id then
+                  Projectile.Projectile_Hitboxes.Delete(temp_phbs, PHB_Cursor);
+                end if;
+                
+                PHB_Cursor := Projectile.Projectile_Hitboxes.Next(PHB_Cursor);
+              end loop;
+            end Iterate_Over_Projectile_Hitboxes;
+          
+          proj_cursor := Fighter.Active_Projectiles_List.Next(proj_cursor);
+        end loop;
       end Mark_Matching_As_Hit;
       
-      procedure On_Hit is
+      procedure On_Hit (hit_with : Hitbox) is
       begin
-        Defender.hitpoints := Defender.hitpoints - elem.damage;
-        Defender.hitstun_duration := elem.hitstun_duration;
-        Defender.knockback_velocity_vertical := elem.knockback_vertical;
-        Defender.knockback_velocity_horizontal := elem.knockback_horizontal;
-        Defender.knockback_duration := elem.knockback_duration;
-        Defender.dash_duration := 0;
-        Fighter.Execute_Move(Defender, Defender.on_hit_steps, Hit_By_Attack);
+        if Defender.armor > 0 then
+          Defender.armor := Defender.armor - 1;
+        else
+          Defender.hitpoints := Defender.hitpoints - hit_with.damage;
+          Defender.hitstun_duration := hit_with.hitstun_duration;
+          Defender.knockback_velocity_vertical := hit_with.knockback_vertical;
+          Defender.knockback_velocity_horizontal := hit_with.knockback_horizontal;
+          Defender.knockback_duration := hit_with.knockback_duration;
+          Defender.dash_duration := 0;
+          Fighter.Execute_Move(Defender, Defender.on_hit_steps, Hit_By_Attack);
+        end if;
       end On_Hit;
       
       procedure On_Block is
       begin
         Defender.blockstun_duration := universal_blockstun;
-        Fighter.Execute_Move(Defender, Defender.block_steps, Blocked_Attack);
+        if Defender.crouching then
+          Fighter.Execute_Move(Defender, Defender.crouching_block_steps, Blocked_Attack);
+        else
+          Fighter.Execute_Move(Defender, Defender.standing_block_steps, Blocked_Attack);
+        end if;
       end On_Block;
       
       procedure On_Grab is
@@ -608,44 +644,78 @@ procedure Fighting_Game_Ada is
         end if;
       end On_Grab;
       
-    begin
-      while Fighter.Active_Hitboxes.Has_Element(index) loop
-        elem := Fighter.Active_Hitboxes.Element(index);
-        shape := elem.shape;
-        
-        if not Attacker.facing_right then
-          shape.pos.X := -shape.pos.X;
-        end if;
-        
-        if not elem.hit then
-          if Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.upper_hitbox + Defender.pos + Defender.sprite_offset) then
-            case elem.effect is
+      function Check_Attacker_Hitbox (atk_hb : Hitbox) return Boolean is
+        touches_upper : constant Boolean := Collides(atk_hb.shape, Defender.upper_hitbox + Defender.pos + Defender.upper_hitbox_temp_offset);
+        touches_lower : constant Boolean := Collides(atk_hb.shape, Defender.lower_hitbox + Defender.pos + Defender.lower_hitbox_temp_offset);
+      begin
+        if not atk_hb.hit then
+          if touches_upper or touches_lower then
+            case atk_hb.effect is
               when Attack =>
-                if Defender.blocking and not Defender.crouching then
+                if Defender.blocking and ((touches_upper and not Defender.crouching) or (touches_lower and Defender.crouching)) then
                   On_Block;
                 else
-                  On_Hit;
+                  On_Hit(atk_hb);
                 end if;
               when Grab =>
                 On_Grab;
             end case;
-            Mark_Matching_As_Hit(elem.identity);
-          elsif Collides(shape + Attacker.pos + Attacker.sprite_offset, Defender.lower_hitbox + Defender.pos + Defender.sprite_offset) then
-            case elem.effect is
-              when Attack =>
-                if Defender.blocking and Defender.crouching then
-                  On_Block;
-                else
-                  On_Hit;
-                end if;
-              when Grab =>
-                On_Grab;
-            end case;
-            Mark_Matching_As_Hit(elem.identity);
+            
+            Mark_Matching_As_Hit(atk_hb.identity);
+            return true;
           end if;
         end if;
         
+        return false;
+      end Check_Attacker_Hitbox;
+      
+    begin
+      while Fighter.Active_Hitboxes.Has_Element(index) loop
+        elem := Fighter.Active_Hitboxes.Element(index);
+        
+        if not Attacker.facing_right then
+          elem.shape.pos.X := -elem.shape.pos.X;
+        end if;
+        
+        Active_Hitbox_Check:
+          declare
+            hit : Boolean := false;
+          begin
+            elem.shape.pos := elem.shape.pos + Attacker.pos;
+            hit := Check_Attacker_Hitbox(elem);
+          end Active_Hitbox_Check;
+        
         index := Fighter.Active_Hitboxes.Next(index);
+      end loop;
+      
+      while Fighter.Active_Projectiles_List.Has_Element(proj_index) loop
+        proj_elem := Fighter.Active_Projectiles_List.Element(proj_index);
+        
+        Iterate_Through_Projectile_Hitboxes:
+          declare
+            proj_hb_index : Projectile.Projectile_Hitboxes.Cursor := Projectile.Projectile_Hitboxes.First(proj_elem.hitboxes);
+          begin
+            while Projectile.Projectile_Hitboxes.Has_Element(proj_hb_index) loop
+              Projectile_Hitbox_Check:
+                declare
+                  HB : Hitbox := Projectile.Projectile_Hitboxes.Element(proj_hb_index);
+                begin
+                  HB.shape.pos := HB.shape.pos + proj_elem.pos;
+                  
+                  if Check_Attacker_Hitbox(HB) then
+                    Projectile.Projectile_Hitboxes.Delete(proj_elem.hitboxes, proj_hb_index);
+                    Fighter.Active_Projectiles_List.Replace_Element(Attacker.active_projectiles, proj_index, proj_elem);
+                    
+                    -- exit when first hitbox of projectile makes contact so that multi-hit projectiles won't hit all on the same frame
+                    exit;
+                  end if;
+                end Projectile_Hitbox_Check;
+                
+                proj_hb_index := Projectile.Projectile_Hitboxes.Next(proj_hb_index);
+            end loop;
+          end Iterate_Through_Projectile_Hitboxes;
+        
+        proj_index := Fighter.Active_Projectiles_List.Next(proj_index);
       end loop;
   end Collide_Attacks_With;
   
@@ -1092,6 +1162,12 @@ procedure Fighting_Game_Ada is
                             
                             if Input_Recognized(Ev, GIS, Start_Press) then
                               state.paused := Player_Pause;
+                              Make_Music_Quieter:
+                                declare
+                                  success : constant Boolean := Boolean(al_set_audio_stream_gain(state.stage.music, battle_pause_music_lower_volume));
+                                begin
+                                  null;
+                                end Make_Music_Quieter;
                             end if;
                           end Player_Battle_Input;
                         begin
@@ -1113,6 +1189,13 @@ procedure Fighting_Game_Ada is
                       elsif Input_Recognized(Ev, pause_player_input_state, Start_Press) then
                         state.paused := Unpaused;
                         state.pause_menu_options_index := 0;
+                        
+                        Increase_Volume_To_Normal:
+                          declare
+                            success : Boolean := Boolean(al_set_audio_stream_gain(state.stage.music, battle_unpause_music_increase_volume));
+                          begin
+                            null;
+                          end Increase_Volume_To_Normal;
                       end if;
                     end Pause_Menu_Input;
                 end if;
@@ -1546,6 +1629,41 @@ begin
                             Win_Total := Win_Total + 1;
                           end if;
                         end Award_Round_Win_If_Dead;
+                        
+                        procedure Reset_Player (Player : in out Fighter.Fighter; ToPos : Position) is
+                        begin
+                          Player.hitpoints := battle_player_starting_health;
+                          Player.pos := ToPos;
+                          Player.holding_right := false;
+                          Player.holding_left := false;
+                          Player.holding_down := false;
+                          Player.hitstun_duration := 0;
+                          Player.blockstun_duration := 0;
+                          Player.grabbed := false;
+                          Player.grabbing := false;
+                          Player.velocity_horizontal := 0.0;
+                          Player.velocity_vertical := 0.0;
+                          Player.knockback_velocity_vertical := 0.0;
+                          Player.knockback_velocity_horizontal := 0.0;
+                          Player.knockback_duration := 0;
+                          Player.dash_velocity_vertical := 0.0;
+                          Player.dash_velocity_horizontal := 0.0;
+                          Player.dash_duration := 0;
+                          Player.upper_hitbox_temp_offset := Position'(X => 0.0, Y => 0.0);
+                          Player.lower_hitbox_temp_offset := Position'(X => 0.0, Y => 0.0);
+                          
+                          for EB of Player.extended_bitmaps.all loop
+                            EB.shown := false;
+                            EB.anim_index := 0;
+                            EB.anim_frame := 0;
+                          end loop;
+                          
+                          Fighter.Active_Hitboxes.Clear(Player.attack_hitboxes);
+                          Fighter.Active_Projectiles_List.Clear(Player.active_projectiles);
+                          
+                          Fighter.Execute_Move(Player, Player.idle_stand_steps, Idle);
+                        end Reset_Player;
+                        
                       begin
                         Award_Round_Win_If_Dead(state.player_one_won_rounds, state.player_two);
                         Award_Round_Win_If_Dead(state.player_two_won_rounds, state.player_one);
@@ -1557,10 +1675,8 @@ begin
                         else
                           state.sequence_playing := Round_Start;
                           state.round := state.round + 1;
-                          state.player_one.hitpoints := battle_player_starting_health;
-                          state.player_two.hitpoints := battle_player_starting_health;
-                          state.player_one.pos := battle_player_one_starting_pos;
-                          state.player_two.pos := battle_player_two_starting_pos;
+                          Reset_Player(state.player_one, battle_player_one_starting_pos);
+                          Reset_Player(state.player_two, battle_player_two_starting_pos);
                           state.camera_pos := Position'(0.0, 0.0);
                           state.frame := 0;
                         end if;
@@ -1571,7 +1687,7 @@ begin
               end case;
               
               if state.GS = Battle then
-                if (state.player_one.pos.X + state.player_one.sprite_offset.X) < (state.player_two.pos.X + state.player_two.sprite_offset.X) then
+                if state.player_one.pos.X < state.player_two.pos.X then
                   if not state.player_one.facing_right and state.player_one.on_ground and not (state.player_one.doing = Normal_Move) and Fighter.Inputs_List.Is_Empty(state.player_one.inputs) then
                     state.player_one.facing_right := true;
                   end if;
@@ -1718,6 +1834,52 @@ begin
                 
                 Collide_Attacks_With(state.player_one, state.player_two);
                 Collide_Attacks_With(state.player_two, state.player_one);
+                
+                -- collide projectiles with other projectiles here
+                Projectile_On_Projectile_Collision:
+                  declare
+                    p1_proj_cursor : Fighter.Active_Projectiles_List.Cursor := Fighter.Active_Projectiles_List.First(state.player_one.active_projectiles);
+                    p2_proj_cursor : Fighter.Active_Projectiles_List.Cursor := Fighter.Active_Projectiles_List.First(state.player_two.active_projectiles);
+                  begin
+                    while Fighter.Active_Projectiles_List.Has_Element(p1_proj_cursor) loop
+                      while Fighter.Active_Projectiles_List.Has_Element(p2_proj_cursor) loop
+                        Projectile_Hitboxes_Collide:
+                          declare
+                            procedure Destroy_Projectile_Check (list : in out Fighter.Active_Projectiles_List.List; cursor : in out Fighter.Active_Projectiles_List.Cursor; cur_projectile : Projectile.Projectile) is
+                            begin
+                              if Projectile.Projectile_Hitboxes.Is_Empty(cur_projectile.hitboxes) then
+                                Fighter.Active_Projectiles_List.Delete(list, cursor);
+                              end if;
+                            end Destroy_Projectile_Check;
+                            
+                            first_projectile : Projectile.Projectile := Fighter.Active_Projectiles_List.Element(p1_proj_cursor);
+                            second_projectile : Projectile.Projectile := Fighter.Active_Projectiles_List.Element(p2_proj_cursor);
+                            first_proj_hb_cursor : Projectile.Projectile_Hitboxes.Cursor := Projectile.Projectile_Hitboxes.First(first_projectile.hitboxes);
+                            second_proj_hb_cursor : Projectile.Projectile_Hitboxes.Cursor := Projectile.Projectile_Hitboxes.First(second_projectile.hitboxes);
+                          begin
+                            while Projectile.Projectile_Hitboxes.Has_Element(first_proj_hb_cursor) loop
+                              while Projectile.Projectile_Hitboxes.Has_Element(second_proj_hb_cursor) loop
+                                if Collides((Projectile.Projectile_Hitboxes.Element(first_proj_hb_cursor).shape + first_projectile.pos), (Projectile.Projectile_Hitboxes.Element(second_proj_hb_cursor).shape) + second_projectile.pos) then
+                                  Projectile.Projectile_Hitboxes.Delete(first_projectile.hitboxes, first_proj_hb_cursor);
+                                  Projectile.Projectile_Hitboxes.Delete(second_projectile.hitboxes, second_proj_hb_cursor);
+                                end if;
+                                
+                                second_proj_hb_cursor := Projectile.Projectile_Hitboxes.Next(second_proj_hb_cursor);
+                              end loop;
+                              
+                              first_proj_hb_cursor := Projectile.Projectile_Hitboxes.Next(first_proj_hb_cursor);
+                            end loop;
+                            
+                            Destroy_Projectile_Check(state.player_one.active_projectiles, p1_proj_cursor, first_projectile);
+                            Destroy_Projectile_Check(state.player_two.active_projectiles, p2_proj_cursor, second_projectile);
+                          end Projectile_Hitboxes_Collide;
+                        
+                        p2_proj_cursor := Fighter.Active_Projectiles_List.Next(p2_proj_cursor);
+                      end loop;
+                      
+                      p1_proj_cursor := Fighter.Active_Projectiles_List.Next(p1_proj_cursor);
+                    end loop;
+                  end Projectile_On_Projectile_Collision;
                 
                 -- move camera here
                 MoveCamera:

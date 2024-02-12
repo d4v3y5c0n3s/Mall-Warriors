@@ -17,7 +17,7 @@ package body Fighter is
     Inputs_List.Append(F.inputs, on_frame);
   end Queue_Input;
   
-  procedure Add_Move (F : in out Fighter; M : Move.Move; Index : Natural) is
+  procedure Add_Move (F : in out Fighter; M : Move.Move; Index : Natural; Cond : Tree_End_Conditions) is
     root_cursor : Input_Tree.Cursor := Input_Tree.Root(F.tree_of_move_inputs);
     child_cursor : Input_Tree.Cursor := Input_Tree.First_Child(root_cursor);
     temp_node : Input_Tree_Node_Access := new Input_Tree_Node'(ID => up);
@@ -49,27 +49,55 @@ package body Fighter is
       EnsureIsInTree(I);
     end loop;
     
-    EnsureIsInTree(new Input_Tree_Node'(ID => tree_end, key => Index));
+    EnsureIsInTree(new Input_Tree_Node'(ID => tree_end, key => Index, condition => Cond));
     F.moves(Index) := M;
   end Add_Move;
+  
+  procedure Play_Walk_Anim (F : in out Fighter) is
+  begin
+    if F.on_ground and not Stunned(F) and not F.crouching and F.doing /= Normal_Move then
+      if F.doing /= Walk then
+        if F.holding_left and not F.holding_right then
+          if F.facing_right then
+            Execute_Move(F, F.backwards_walk_steps, Walk);
+          else
+            Execute_Move(F, F.forwards_walk_steps, Walk);
+          end if;
+        elsif F.holding_right and not F.holding_left then
+          if F.facing_right then
+            Execute_Move(F, F.forwards_walk_steps, Walk);
+          else
+            Execute_Move(F, F.backwards_walk_steps, Walk);
+          end if;
+        end if;
+      elsif F.doing /= Idle and not F.holding_right and not F.holding_left then
+        Execute_Move(F, F.idle_stand_steps, Idle);
+      end if;
+    end if;
+  end Play_Walk_Anim;
 
   procedure Press_Input (F : in out Fighter; given_input : input_ids; frame : Natural) is
   begin
     Queue_Input(F, Frame_And_Input'(frame, given_input));
     case given_input is
       when up =>
-        if F.on_ground and not Stunned(F) then
+        if F.on_ground and not Stunned(F) and F.doing /= Normal_Move then
           F.on_ground := false;
           F.velocity_vertical := F.jump_speed;
           F.strafing_left := F.holding_left;
           F.strafing_right := F.holding_right;
+          Execute_Move(F, F.on_jump_steps, Jump);
         end if;
       when left =>
         F.holding_left := true;
+        Play_Walk_Anim(F);
       when right =>
         F.holding_right := true;
+        Play_Walk_Anim(F);
       when down =>
-        if F.on_ground and not Stunned(F) then
+        F.holding_down := true;
+        
+        if F.on_ground and not Stunned(F) and (F.doing = Idle or F.doing = Walk) then
           F.crouching := true;
           Execute_Move(F, F.start_crouch_steps, Start_Crouch);
         end if;
@@ -83,12 +111,19 @@ package body Fighter is
     case given_input is
       when left =>
         F.holding_left := false;
+        Play_Walk_Anim(F);
       when right =>
         F.holding_right := false;
+        Play_Walk_Anim(F);
       when down =>
+        F.holding_down := false;
+        
         if F.crouching and not Stunned(F) then
           F.crouching := false;
-          Execute_Move(F, F.start_uncrouch_steps, Start_Uncrouch);
+          
+          if F.doing = Start_Crouch or F.doing = Crouched then
+            Execute_Move(F, F.start_uncrouch_steps, Start_Uncrouch);
+          end if;
         end if;
       when others =>
         null;
@@ -97,30 +132,42 @@ package body Fighter is
   
   procedure Draw (F : Fighter) is
     pos_with_offset : constant Position := F.pos + F.sprite_offset;
-    sprite_facing : Interfaces.C.int := 0;
+    sprite_facing : constant Interfaces.C.int := (if not F.facing_right then 1 else 0);
   begin
-    case F.sprite_data.S is
-      when none =>
-        null;
-      when has_bitmap =>
-        if not F.facing_right then
-          -- change based on whether sprite should face a different direction
-          sprite_facing := 1;
-        end if;
-        allegro5_bitmap_draw_h.al_draw_bitmap_region(
-          F.sprite_data.bitmap,
-          F.active_animation(F.active_anim_index).x_start, F.active_animation(F.active_anim_index).y_start,
-          Float(F.frame_width), Float(F.frame_height),
-          Float(pos_with_offset.X), Float(pos_with_offset.Y),
-          sprite_facing
-        );
-    end case;
+    allegro5_bitmap_draw_h.al_draw_bitmap_region(
+      F.sprite_data,
+      F.active_animation(F.active_anim_index).x_start, F.active_animation(F.active_anim_index).y_start,
+      Float(F.frame_width), Float(F.frame_height),
+      Float(pos_with_offset.X), Float(pos_with_offset.Y),
+      sprite_facing
+    );
+    
+    Draw_Extented_Bitmaps:
+      declare
+      begin
+        for EB of F.extended_bitmaps.all loop
+          if EB.shown then
+            Extended_Bitmap.Draw(EB, F.pos, F.facing_right);
+          end if;
+        end loop;
+      end Draw_Extented_Bitmaps;
+    
+    Draw_Projectiles:
+      declare
+        p_cursor : Active_Projectiles_List.Cursor := Active_Projectiles_List.First(F.active_projectiles);
+      begin
+        while Active_Projectiles_List.Has_Element(p_cursor) loop
+          Projectile.Draw(Active_Projectiles_List.Element(p_cursor));
+          
+          p_cursor := Active_Projectiles_List.Next(p_cursor);
+        end loop;
+      end Draw_Projectiles;
     
     if F.show_hitboxes then
       Draw_Debug_Hitboxes:
         declare
-          upper_hb_pos : constant Position := F.upper_hitbox.pos + F.pos;
-          lower_hb_pos : constant Position := F.lower_hitbox.pos + F.pos;
+          upper_hb_pos : constant Position := F.upper_hitbox.pos + F.pos + F.upper_hitbox_temp_offset;
+          lower_hb_pos : constant Position := F.lower_hitbox.pos + F.pos + F.lower_hitbox_temp_offset;
           cb_hb_pos : constant Position := F.chunkbox.pos + F.pos;
           index : Active_Hitboxes.Cursor := Active_Hitboxes.First(F.attack_hitboxes);
           elem : Hitbox;
@@ -139,6 +186,36 @@ package body Fighter is
             
             index := Active_Hitboxes.Next(index);
           end loop;
+          
+          Draw_Projectile_Hitboxes:
+            declare
+              ap_cursor : Active_Projectiles_List.Cursor := Active_Projectiles_List.First(F.active_projectiles);
+              ap_elem : Projectile.Projectile;
+              phbs_cursor : Projectile.Projectile_Hitboxes.Cursor;
+              phbs_elem : Hitbox;
+            begin
+              while Active_Projectiles_List.Has_Element(ap_cursor) loop
+              
+                phbs_cursor := Projectile.Projectile_Hitboxes.First(Active_Projectiles_List.Element(ap_cursor).hitboxes);
+                ap_elem := Active_Projectiles_List.Element(ap_cursor);
+                
+                while Projectile.Projectile_Hitboxes.Has_Element(phbs_cursor) loop
+                  phbs_elem := Projectile.Projectile_Hitboxes.Element(phbs_cursor);
+                  
+                  allegro_primitives_h.al_draw_circle(
+                    Float((if not ap_elem.going_right then -ap_elem.x_offset else ap_elem.x_offset) + phbs_elem.shape.pos.X + ap_elem.pos.X),
+                    Float(phbs_elem.shape.pos.Y + ap_elem.pos.Y),
+                    Float(phbs_elem.shape.radius),
+                    debug_attack_hitbox_color,
+                    4.0
+                  );
+                  
+                  phbs_cursor := Projectile.Projectile_Hitboxes.Next(phbs_cursor);
+                end loop;
+                
+                ap_cursor := Active_Projectiles_List.Next(ap_cursor);
+              end loop;
+            end Draw_Projectile_Hitboxes;
         end Draw_Debug_Hitboxes;
     end if;
   end Draw;
@@ -159,8 +236,8 @@ package body Fighter is
           found_match_at_level : Boolean := false;
           match_found : Boolean := false;
           elem_at_inputs_cursor : Frame_And_Input;
-          buffer_expired : Boolean := Inputs_List.First_Element(F.inputs).frame + Globals.input_buffer_frames < Current_Frame;
-          button_delay_expired : Boolean := Inputs_List.First_Element(F.inputs).frame + input_buffer_max_button_delay < Current_Frame;
+          buffer_expired : constant Boolean := Inputs_List.First_Element(F.inputs).frame + Globals.input_buffer_frames < Current_Frame;
+          button_delay_expired : constant Boolean := Inputs_List.First_Element(F.inputs).frame + input_buffer_max_button_delay < Current_Frame;
         begin
           loop
             if Inputs_List.Is_Empty(F.inputs) then
@@ -183,9 +260,11 @@ package body Fighter is
                 temp_node := Input_Tree.Element(tree_cursor);
                 
                 if temp_node.ID = tree_end then
-                  longest_input_chain_key := temp_node.key;
-                  longest_match := Inputs_List.Copy(input_chain);
-                  match_found := true;
+                  if (temp_node.condition.works_standing and (F.on_ground and not F.crouching)) or (temp_node.condition.works_crouching and F.crouching) or (temp_node.condition.works_midair and not F.on_ground) then
+                    longest_input_chain_key := temp_node.key;
+                    longest_match := Inputs_List.Copy(input_chain);
+                    match_found := true;
+                  end if;
                   tree_cursor := Input_Tree.Next_Sibling(tree_cursor);
                 elsif Inputs_List.Has_Element(inputs_cursor) then
                   elem_at_inputs_cursor := Inputs_List.Element(inputs_cursor);
@@ -306,7 +385,7 @@ package body Fighter is
                 Try_To_Play_Sound:
                   declare
                     success : Boolean;
-                    sample_id : access allegro_audio_h.ALLEGRO_SAMPLE_ID := new allegro_audio_h.ALLEGRO_SAMPLE_ID;
+                    sample_id : constant access allegro_audio_h.ALLEGRO_SAMPLE_ID := new allegro_audio_h.ALLEGRO_SAMPLE_ID;
                   begin
                     success := Boolean(
                       allegro_audio_h.al_play_sample(
@@ -317,6 +396,31 @@ package body Fighter is
                       )
                     );
                   end Try_To_Play_Sound;
+              when Move.Move_Upper_Hitbox =>
+                F.upper_hitbox_temp_offset := operation.upper_offset;
+              when Move.Move_Lower_Hitbox =>
+                F.lower_hitbox_temp_offset := operation.lower_offset;
+              when Move.Increment_Armor =>
+                F.armor := F.armor + operation.increment_by;
+              when Move.Decrement_Armor =>
+                F.armor := (if F.armor > operation.decrement_by then F.armor - operation.decrement_by else 0);
+              when Move.Spawn_Projectile =>
+                Make_New_Projectile:
+                  declare
+                    proj : Projectile.Projectile := F.projectiles(operation.spawn_proj_ind);
+                    facing_x_modifier : constant Scalar := (if F.facing_right then 1.0 else -1.0);
+                  begin
+                    proj.going_right := F.facing_right;
+                    proj.pos := Position'(X => (proj.pos.X * facing_x_modifier), Y => proj.pos.Y);
+                    proj.pos := proj.pos + F.pos;
+                    Active_Projectiles_List.Append(F.active_projectiles, proj);
+                  end Make_New_Projectile;
+              when Move.Show_Extended_Bitmap =>
+                F.extended_bitmaps(operation.show_extended_ind).shown := true;
+              when Move.Hide_Extended_Bitmap =>
+                F.extended_bitmaps(operation.hide_extended_ind).shown := false;
+                F.extended_bitmaps(operation.hide_extended_ind).anim_index := 0;
+                F.extended_bitmaps(operation.hide_extended_ind).anim_frame := 0;
             end case;
           end Operation_Step;
       end loop;
@@ -337,13 +441,23 @@ package body Fighter is
         F.grabbed := false;
         F.grabbing := false;
         
-        if not Stunned(F) then
-          if F.crouching then
-            Execute_Move(F, F.idle_crouch_steps, Crouched);
-          else
-            Execute_Move(F, F.idle_stand_steps, Idle);
-          end if;
+        F.armor := 0;
+        
+        if not (F.doing = Start_Crouch or F.doing = Crouched) then
+          F.upper_hitbox_temp_offset := Position'(X => 0.0, Y => 0.0);
+          F.lower_hitbox_temp_offset := Position'(X => 0.0, Y => 0.0);
         end if;
+        
+        case F.doing is
+          when Normal_Move | Grabbing | Blocked_Attack | Start_Uncrouch | Grabbed | Jump | Hit_By_Attack =>
+            Execute_Move(F, F.idle_stand_steps, Idle);
+          when Start_Crouch =>
+            if F.holding_down then
+              Execute_Move(F, F.idle_crouch_steps, Crouched);
+            end if;
+          when others =>
+            null;
+        end case;
     end if;
     
     -- continue processing the current animation here
@@ -377,9 +491,9 @@ package body Fighter is
         end if;
       else
         if F.on_ground then
-          if F.holding_left and not F.holding_right then
+          if F.holding_left and not F.holding_right and not F.crouching then
             F.velocity_horizontal := -F.walk_speed;
-          elsif F.holding_right and not F.holding_left then
+          elsif F.holding_right and not F.holding_left and not F.crouching then
             F.velocity_horizontal := F.walk_speed;
           else
             F.velocity_horizontal := 0.0;
@@ -428,14 +542,42 @@ package body Fighter is
         F.on_ground := false;
       end if;
     end if;
+    
+    -- update any extended bitmaps
+    for EB of F.extended_bitmaps.all loop
+      if EB.shown then
+        Extended_Bitmap.Frame_Update(EB);
+      end if;
+    end loop;
+    
+    -- update any projectiles
+    Update_Projectiles:
+      declare
+        ap_cursor : Active_Projectiles_List.Cursor := Active_Projectiles_List.First(F.active_projectiles);
+        ap_elem : Projectile.Projectile;
+      begin
+        while Active_Projectiles_List.Has_Element(ap_cursor) loop
+          ap_elem := Active_Projectiles_List.Element(ap_cursor);
+          
+          Projectile.Frame_Update(ap_elem);
+          
+          if ap_elem.frames_to_live > 0 then
+            Active_Projectiles_List.Replace_Element(F.active_projectiles, ap_cursor, ap_elem);
+          else
+            Active_Projectiles_List.Delete(F.active_projectiles, ap_cursor);
+          end if;
+          
+          ap_cursor := Active_Projectiles_List.Next(ap_cursor);
+        end loop;
+      end Update_Projectiles;
   end Update;
   
   procedure Execute_Move (F : in out Fighter; ThisMove : Move.Move_Step_Array_Access; Doing : What_Doing) is
   begin
-      F.doing := Doing;
-      F.move_frame_progression := 0;
-      F.move_step_index := 0;
-      F.active_move_steps := ThisMove;
+    F.doing := Doing;
+    F.move_frame_progression := 0;
+    F.move_step_index := 0;
+    F.active_move_steps := ThisMove;
   end Execute_Move;
 
 end Fighter;

@@ -18,7 +18,7 @@ package Cool_Math is
   
   function "+" (C : Circle; P : Position) return Circle;
   
-  function "abs" (S : Scalar) return Scalar;
+  function "abs" (S : Scalar) return Scalar is (if S < 0.0 then S * (-1.0) else S);
   
   function Collides (A, B: Circle) return Boolean;
 
