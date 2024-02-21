@@ -985,7 +985,7 @@ procedure Fighting_Game_Ada is
                     when 2 =>-- joystick button down
                       case Ev.joystick.button is
                         when controller_start_id =>-- start button
-                          Connect_Player(default_joystick_translation, new Opt_Joy_Handle'(J => Joy, handle => Ev.joystick.source));
+                          Connect_Player(default_joystick_translation, new Opt_Joy_Handle'(J => Joy, handle => Ev.joystick.id));
                         when others =>
                           null;
                       end case;

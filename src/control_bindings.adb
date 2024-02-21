@@ -6,7 +6,7 @@ package body Control_Bindings is
     function Joystick_Handle_Matches (Ev : access ALLEGRO_EVENT) return Boolean is
     begin
       if (Ev.c_type = 1 or Ev.c_type = 2 or Ev.c_type = 3) and GIS.optional_joystick_handle.J = Joy then
-        if Joy_Access_Conversions.To_Address(Ev.joystick.source) = Joy_Access_Conversions.To_Address(GIS.optional_joystick_handle.handle) then
+        if Joy_Access_Conversions.To_Address(Ev.joystick.id) = Joy_Access_Conversions.To_Address(GIS.optional_joystick_handle.handle) then
           return true;
         else
           return false;
