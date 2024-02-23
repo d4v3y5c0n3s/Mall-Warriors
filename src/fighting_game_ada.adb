@@ -995,6 +995,35 @@ procedure Fighting_Game_Ada is
                 end if;
               end Assignment_Screen_Input;
           else
+            if Ev.c_type = 2 then
+              Unconnected_Controller_Press_Start:
+                declare
+                  not_from_p1, not_from_p2 : Boolean := false;
+                begin
+                  if Ev.joystick.button = controller_start_id then
+                    if not state.p1_connected then
+                      not_from_p1 := true;
+                    elsif state.p1_input_state.optional_joystick_handle.J = Joy then
+                      not_from_p1 := not(Input_Recognized(Ev, state.p1_input_state, Start_Press));
+                    else
+                      not_from_p1 := true;
+                    end if;
+                    
+                    if not state.p2_connected then
+                      not_from_p2 := true;
+                    elsif state.p2_input_state.optional_joystick_handle.J = Joy then
+                      not_from_p2 := not(Input_Recognized(Ev, state.p2_input_state, Start_Press));
+                    else
+                      not_from_p2 := true;
+                    end if;
+                    
+                    if not_from_p1 and not_from_p2 then
+                      Open_Assignment_Screen;
+                    end if;
+                  end if;
+                end Unconnected_Controller_Press_Start;
+            end if;
+            
             case state.GS is
               when Title =>
                 if Ev.c_type = 4 then
