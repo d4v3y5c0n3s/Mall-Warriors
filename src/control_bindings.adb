@@ -106,9 +106,14 @@ package body Control_Bindings is
           if translation.ev.joy_data.J = Axis then
             Check_Cur_With_Last:
               declare
-                subtype Joy_Data_Range is Float range translation.ev.joy_data.min .. translation.ev.joy_data.max;
+                
+                function Cur_In_Range_Of_Last (JDMin : Float; JDMax : Float) return Boolean is
+                  subtype Joy_Data_Range is Float range JDMin .. JDMax;
+                begin
+                  return GIS.last(Integer(translation.ev.joy_data.stick_num), Integer(translation.ev.joy_data.axis_num)) in Joy_Data_Range and GIS.cur(Integer(translation.ev.joy_data.stick_num), Integer(translation.ev.joy_data.axis_num)) in Joy_Data_Range;
+                end Cur_In_Range_Of_Last;
               begin
-                if GIS.last(Integer(translation.ev.joy_data.stick_num), Integer(translation.ev.joy_data.axis_num)) in Joy_Data_Range and GIS.cur(Integer(translation.ev.joy_data.stick_num), Integer(translation.ev.joy_data.axis_num)) in Joy_Data_Range then
+                if Cur_In_Range_Of_Last(translation.ev.joy_data.min, translation.ev.joy_data.max) or Cur_In_Range_Of_Last(translation.ev.joy_data.max, translation.ev.joy_data.min) then
                   recognized := false;
                 end if;
               end Check_Cur_With_Last;
