@@ -1118,9 +1118,14 @@ procedure Fighting_Game_Ada is
                       end if;
                     end Player_Char_Select_Input;
                   begin
-                    Player_Char_Select_Input(state.p1_input_state, state.char_entries, state.p1_char_index);
+                    if state.p1_connected then
+                      Player_Char_Select_Input(state.p1_input_state, state.char_entries, state.p1_char_index);
+                    end if;
+                    
                     if state.GS = Character_Select then
-                      Player_Char_Select_Input(state.p2_input_state, state.char_entries, state.p2_char_index);
+                      if state.p2_connected then
+                        Player_Char_Select_Input(state.p2_input_state, state.char_entries, state.p2_char_index);
+                      end if;
                     end if;
                   end Char_Select_Input;
               when Battle =>
@@ -1200,8 +1205,12 @@ procedure Fighting_Game_Ada is
                             end if;
                           end Player_Battle_Input;
                         begin
-                          Player_Battle_Input(state.p1_input_state, state.player_one, Player_One);
-                          Player_Battle_Input(state.p2_input_state, state.player_two, Player_Two);
+                          if state.p1_connected then
+                            Player_Battle_Input(state.p1_input_state, state.player_one, Player_One);
+                          end if;
+                          if state.p2_connected then
+                            Player_Battle_Input(state.p2_input_state, state.player_two, Player_Two);
+                          end if;
                         end Battle_Input_Step;
                   end case;
                 else
@@ -1611,13 +1620,9 @@ begin
           when Menu =>
             null;
           when Stage_Select =>
-            if (not state.p1_connected) or (not state.p2_connected) then
-              Open_Assignment_Screen;
-            end if;
+            null;
           when Character_Select =>
-            if (not state.p1_connected) or (not state.p2_connected) then
-              Open_Assignment_Screen;
-            end if;
+            null;
           when Battle =>
             if state.paused = Unpaused then
               case state.sequence_playing is
