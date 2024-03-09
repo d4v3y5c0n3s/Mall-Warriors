@@ -1413,6 +1413,7 @@ procedure Fighting_Game_Ada is
           al_draw_bitmap(state.stage_selector_player_one, Float(state.stage_entries(state.p1_stage_index).offset.X), Float(state.stage_entries(state.p1_stage_index).offset.Y), 0);
           
           Draw_Menu_Select_Input("Attack 4", "Select");
+          Draw_Menu_Back_Input("Attack 5");
         when Character_Select =>
           al_draw_bitmap(state.char_select_background, 0.0, 0.0, 0);
           
@@ -1425,6 +1426,7 @@ procedure Fighting_Game_Ada is
           al_draw_bitmap(state.char_selector_player_two, Float(state.char_entries(state.p2_char_index).offset.X), Float(state.char_entries(state.p2_char_index).offset.Y), 0);
           
           Draw_Menu_Select_Input("Attack 4", "Select");
+          Draw_Menu_Back_Input("Attack 5");
         when Battle =>
           
           if state.paused = Unpaused then
