@@ -1285,6 +1285,20 @@ procedure Fighting_Game_Ada is
       al_draw_text(basic_font, color, Float(x_coord), Float(option_pos.Y), 0, New_String(option_text));
     end Draw_General_Option;
     
+    procedure Draw_Menu_Select_Input (Input_Name : String; Input_Effect : String) is
+      select_input_instruction_x_value : constant Float := 540.0;
+      select_input_instruction_y_value : constant Float := 500.0;
+    begin
+      al_draw_text(basic_font, Text_Color, select_input_instruction_x_value, select_input_instruction_y_value, 0, New_String("Press <" & Input_Name & "> to " & Input_Effect & "."));
+    end Draw_Menu_Select_Input;
+    
+    procedure Draw_Menu_Back_Input (Input_Name : String) is
+      back_input_instruction_x_value : constant Float := 540.0;
+      back_input_instruction_y_value : constant Float := 530.0;
+    begin
+      al_draw_text(basic_font, Text_Color, back_input_instruction_x_value, back_input_instruction_y_value, 0, New_String("Press <" & Input_Name & "> to go back."));
+    end Draw_Menu_Back_Input;
+    
   begin
     al_clear_to_color(Color_Black);
     
@@ -1376,6 +1390,8 @@ procedure Fighting_Game_Ada is
           
           al_identity_transform(transform);
           al_use_transform(transform);
+          
+          Draw_Menu_Select_Input("Attack 4", "Select");
         when Stage_Select =>
           al_draw_bitmap(state.stage_select_background, 0.0, 0.0, 0);
           
@@ -1385,6 +1401,8 @@ procedure Fighting_Game_Ada is
           end loop;
           
           al_draw_bitmap(state.stage_selector_player_one, Float(state.stage_entries(state.p1_stage_index).offset.X), Float(state.stage_entries(state.p1_stage_index).offset.Y), 0);
+          
+          Draw_Menu_Select_Input("Attack 4", "Select");
         when Character_Select =>
           al_draw_bitmap(state.char_select_background, 0.0, 0.0, 0);
           
@@ -1395,6 +1413,8 @@ procedure Fighting_Game_Ada is
           
           al_draw_bitmap(state.char_selector_player_one, Float(state.char_entries(state.p1_char_index).offset.X), Float(state.char_entries(state.p1_char_index).offset.Y), 0);
           al_draw_bitmap(state.char_selector_player_two, Float(state.char_entries(state.p2_char_index).offset.X), Float(state.char_entries(state.p2_char_index).offset.Y), 0);
+          
+          Draw_Menu_Select_Input("Attack 4", "Select");
         when Battle =>
           
           if state.paused = Unpaused then
@@ -1487,6 +1507,11 @@ procedure Fighting_Game_Ada is
                       Draw_General_Option(mi.text.all, mi.offset, (if I = state.pause_menu_options_index then Selected else Unselected));
                     end Draw_Pause_Menu_Option;
                 end loop;
+                
+                al_draw_text(basic_font, Text_Color, 200.0, 20.0, 0, New_String("(Assumes player is facing right)"));
+                
+                Draw_Menu_Select_Input("Attack 4", "Select");
+                Draw_Menu_Back_Input("Start");
               end Draw_Pause_Menu;
           end if;
         when Battle_Over =>
@@ -1514,6 +1539,8 @@ procedure Fighting_Game_Ada is
                     Draw_General_Option(mi.text.all, mi.offset, gos);
                   end Draw_After_Battle_Options;
               end loop;
+              
+              Draw_Menu_Select_Input("Attack 4", "Select");
             end Draw_Victory_Screen;
       end case;
     end if;
