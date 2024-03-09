@@ -463,6 +463,29 @@ procedure Fighting_Game_Ada is
   JoyEventSrc : access ALLEGRO_EVENT_SOURCE;
   Ev : access ALLEGRO_EVENT := new ALLEGRO_EVENT;
   
+  generic
+    Only_Call_If_Player_Connected : Boolean := true;
+    Only_Call_P2_If_State_Unchanged : Boolean := false;
+    with procedure P1_Call;
+    with procedure P2_Call;
+  procedure Do_For_Both_Players;
+  procedure Do_For_Both_Players is
+    initial_game_state : Game_State := state.GS;
+    
+    call_for_player_one : constant Boolean := (Only_Call_If_Player_Connected and state.p1_connected) or not Only_Call_If_Player_Connected;
+    call_for_player_two : constant Boolean := (Only_Call_If_Player_Connected and state.p2_connected) or not Only_Call_If_Player_Connected;
+  begin
+    if call_for_player_one then
+      P1_Call;
+    end if;
+    
+    if (Only_Call_P2_If_State_Unchanged and (initial_game_state = state.GS)) or not Only_Call_P2_If_State_Unchanged then
+      if call_for_player_two then
+        P2_Call;
+      end if;
+    end if;
+  end Do_For_Both_Players;
+  
   procedure Game_State_Pass_Player_Inputs (Old_GS : access Game_State_Data; New_GS : access Game_State_Data) is
   begin
     New_GS.p1_connected := Old_GS.p1_connected;
@@ -911,24 +934,17 @@ procedure Fighting_Game_Ada is
       end case;
     end Move_Slot;
     
-    procedure Refresh_Last_If_Connected (connected : Boolean; GIS : in out Game_Input_State) is
-    begin
-      if connected then
-        Refresh_Last_Direction(GIS);
-      end if;
-    end Refresh_Last_If_Connected;
+    procedure Refresh_Last_P1_Call is begin Refresh_Last_Direction(state.p1_input_state); end Refresh_Last_P1_Call;
+    procedure Refresh_Last_P2_Call is begin Refresh_Last_Direction(state.p2_input_state); end Refresh_Last_P2_Call;
+    procedure Refresh_Last_If_Connected is new Do_For_Both_Players(P1_Call => Refresh_Last_P1_Call, P2_Call => Refresh_Last_P2_Call);
     
-    procedure Refresh_Cur_If_Connected (connected : Boolean; GIS : in out Game_Input_State; Ev : access ALLEGRO_EVENT) is
-    begin
-      if connected then
-        Refresh_Cur_Direction(GIS, Ev);
-      end if;
-    end Refresh_Cur_If_Connected;
+    procedure Refresh_Cur_P1_Call is begin Refresh_Cur_Direction(state.p1_input_state, Ev); end Refresh_Cur_P1_Call;
+    procedure Refresh_Cur_P2_Call is begin Refresh_Cur_Direction(state.p2_input_state, Ev); end Refresh_Cur_P2_Call;
+    procedure Refresh_Cur_If_Connected is new Do_For_Both_Players(P1_Call => Refresh_Cur_P1_Call, P2_Call => Refresh_Cur_P2_Call);
     
   begin
     while al_get_next_event(Q, Ev) loop
-      Refresh_Cur_If_Connected(state.p1_connected, state.p1_input_state, Ev);
-      Refresh_Cur_If_Connected(state.p2_connected, state.p2_input_state, Ev);
+      Refresh_Cur_If_Connected;
       
       case Ev.c_type is
         when 42 =>-- code for display getting closed
@@ -1051,30 +1067,31 @@ procedure Fighting_Game_Ada is
                       played_successfully := Boolean(al_play_sample(menu_move_sound, 1.0, 0.0, 1.0, ALLEGRO_PLAYMODE_ONCE, sid));
                     end Play_Move_Sound;
                     
-                    procedure Menu_Input_For_Player (Player_Connected : Boolean; Player_GIS : Game_Input_State) is
+                    procedure Menu_Input (Player_GIS : Game_Input_State) is
                     begin
-                      if Player_Connected then
-                        if Input_Recognized(Ev, Player_GIS, Up_Press) then
-                          state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Up);
-                          Play_Move_Sound;
-                        elsif Input_Recognized(Ev, Player_GIS, Down_Press) then
-                          state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Down);
-                          Play_Move_Sound;
-                        elsif Input_Recognized(Ev, Player_GIS, Left_Press) then
-                          state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Left);
-                          Play_Move_Sound;
-                        elsif Input_Recognized(Ev, Player_GIS, Right_Press) then
-                          state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Right);
-                          Play_Move_Sound;
-                        end if;
-                        if Input_Recognized(Ev, Player_GIS, Start_Press) or Input_Recognized(Ev, Player_GIS, Attack_4_Press) then
-                          Menu_Select_Entry(state.main_menu.all, state.menu_index);
-                        end if;
+                      if Input_Recognized(Ev, Player_GIS, Up_Press) then
+                        state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Up);
+                        Play_Move_Sound;
+                      elsif Input_Recognized(Ev, Player_GIS, Down_Press) then
+                        state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Down);
+                        Play_Move_Sound;
+                      elsif Input_Recognized(Ev, Player_GIS, Left_Press) then
+                        state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Left);
+                        Play_Move_Sound;
+                      elsif Input_Recognized(Ev, Player_GIS, Right_Press) then
+                        state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Right);
+                        Play_Move_Sound;
                       end if;
-                    end Menu_Input_For_Player;
+                      if Input_Recognized(Ev, Player_GIS, Start_Press) or Input_Recognized(Ev, Player_GIS, Attack_4_Press) then
+                        Menu_Select_Entry(state.main_menu.all, state.menu_index);
+                      end if;
+                    end Menu_Input;
+                    procedure Menu_Input_For_P1 is begin Menu_Input(state.p1_input_state); end Menu_Input_For_P1;
+                    procedure Menu_Input_For_P2 is begin Menu_Input(state.p2_input_state); end Menu_Input_For_P2;
+                    procedure Menu_Input_For_Player is new Do_For_Both_Players(Only_Call_P2_If_State_Unchanged => true, P1_Call => Menu_Input_For_P1, P2_Call => Menu_Input_For_P2);
+                    
                   begin
-                    Menu_Input_For_Player(state.p1_connected, state.p1_input_state);
-                    Menu_Input_For_Player(state.p2_connected, state.p2_input_state);
+                    Menu_Input_For_Player;
                   end MenuInput;
               when Stage_Select =>
                 if Input_Recognized(Ev, state.p1_input_state, Up_Press) then
@@ -1097,7 +1114,8 @@ procedure Fighting_Game_Ada is
               when Character_Select =>
                 Char_Select_Input:
                   declare
-                    procedure Player_Char_Select_Input (GIS : Game_Input_State; menu : access Menu_Entry_Array; menu_index : in out Natural) is
+                    procedure Char_Select_Input (GIS : Game_Input_State; menu_index : in out Natural) is
+                      menu : constant access Menu_Entry_Array := state.char_entries;
                     begin
                       if Input_Recognized(Ev, GIS, Up_Press) then
                         menu_index := Menu_Move(menu.all, menu_index, Up);
@@ -1116,17 +1134,12 @@ procedure Fighting_Game_Ada is
                       if Input_Recognized(Ev, GIS, Attack_5_Press) then
                         Main_Menu_Go_To_Verses;
                       end if;
-                    end Player_Char_Select_Input;
+                    end Char_Select_Input;
+                    procedure Player_Char_Select_P1 is begin Char_Select_Input(state.p1_input_state, state.p1_char_index); end Player_Char_Select_P1;
+                    procedure Player_Char_Select_P2 is begin Char_Select_Input(state.p2_input_state, state.p2_char_index); end Player_Char_Select_P2;
+                    procedure Player_Char_Select_Input is new Do_For_Both_Players(Only_Call_P2_If_State_Unchanged => true, P1_Call => Player_Char_Select_P1, P2_Call => Player_Char_Select_P2);
                   begin
-                    if state.p1_connected then
-                      Player_Char_Select_Input(state.p1_input_state, state.char_entries, state.p1_char_index);
-                    end if;
-                    
-                    if state.GS = Character_Select then
-                      if state.p2_connected then
-                        Player_Char_Select_Input(state.p2_input_state, state.char_entries, state.p2_char_index);
-                      end if;
-                    end if;
+                    Player_Char_Select_Input;
                   end Char_Select_Input;
               when Battle =>
                 if state.paused = Unpaused then
@@ -1140,7 +1153,7 @@ procedure Fighting_Game_Ada is
                     when None =>
                       Battle_Input_Step:
                         declare
-                          procedure Player_Battle_Input (GIS : Game_Input_State; F : in out Fighter.Fighter; Player_Pause : Paused_By) is
+                          procedure Battle_Input (GIS : Game_Input_State; F : in out Fighter.Fighter; Player_Pause : Paused_By) is
                           begin
                             if Input_Recognized(Ev, GIS, Up_Press) then
                               Fighter.Press_Input(F, Globals.up, state.frame);
@@ -1203,14 +1216,12 @@ procedure Fighting_Game_Ada is
                                   null;
                                 end Make_Music_Quieter;
                             end if;
-                          end Player_Battle_Input;
+                          end Battle_Input;
+                          procedure Player_Battle_P1 is begin Battle_Input(state.p1_input_state, state.player_one, Player_One); end Player_Battle_P1;
+                          procedure Player_Battle_P2 is begin Battle_Input(state.p2_input_state, state.player_two, Player_Two); end Player_Battle_P2;
+                          procedure Player_Battle_Input is new Do_For_Both_Players(P1_Call => Player_Battle_P1, P2_Call => Player_Battle_P2);
                         begin
-                          if state.p1_connected then
-                            Player_Battle_Input(state.p1_input_state, state.player_one, Player_One);
-                          end if;
-                          if state.p2_connected then
-                            Player_Battle_Input(state.p2_input_state, state.player_two, Player_Two);
-                          end if;
+                          Player_Battle_Input;
                         end Battle_Input_Step;
                   end case;
                 else
@@ -1250,18 +1261,17 @@ procedure Fighting_Game_Ada is
                         Menu_Select_Entry(state.after_battle_options.all, state.after_battle_index);
                       end if;
                     end Player_Decide_After_Battle;
+                    procedure Player_Decide_P1 is begin Player_Decide_After_Battle(state.p1_input_state); end Player_Decide_P1;
+                    procedure Player_Decide_P2 is begin Player_Decide_After_Battle(state.p2_input_state); end Player_Decide_P2;
+                    procedure Player_Decide_After_Battle is new Do_For_Both_Players(Only_Call_P2_If_State_Unchanged => true, P1_Call => Player_Decide_P1, P2_Call => Player_Decide_P2);
                   begin
-                    Player_Decide_After_Battle(state.p1_input_state);
-                    if state.GS = Battle_Over then
-                      Player_Decide_After_Battle(state.p2_input_state);
-                    end if;
+                    Player_Decide_After_Battle;
                   end Battle_Over_Input;
             end case;
           end if;
       end case;
 
-      Refresh_Last_If_Connected(state.p1_connected, state.p1_input_state);
-      Refresh_Last_If_Connected(state.p2_connected, state.p2_input_state);
+      Refresh_Last_If_Connected;
     end loop;
   end State_Input_Step;
   
