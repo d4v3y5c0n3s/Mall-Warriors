@@ -1484,11 +1484,29 @@ procedure Fighting_Game_Ada is
                     move_we_want : constant Move.Move := player_moves_col(Fighter_Move_Indexes(fo)(at_ind));
                     ret : Unbounded_String := To_Unbounded_String("");
                     cmd : Input_Tree_Node_Access;
+                    
+                    function Tree_ID_To_Text (tree_id : input_tree_id) return String is
+                      id_text : String := (case tree_id is
+                        when up => "Up",
+                        when down => "Down",
+                        when left => "Left",
+                        when right => "Right",
+                        when atk_1 => "Attack 1",
+                        when atk_2 => "Attack 2",
+                        when atk_3 => "Attack 3",
+                        when atk_4 => "Attack 4",
+                        when atk_5 => "Attack 5",
+                        when atk_6 => "Attack 6",
+                        when tree_end => ""
+                      );
+                    begin
+                      return "<" & id_text & ">";
+                    end Tree_ID_To_Text;
                   begin
                     for I in move_we_want.command.all'Range loop
                       cmd := move_we_want.command.all(I);
                       if cmd.ID /= tree_end then
-                        ret := ret & (if I /= move_we_want.command.all'First then ", " else "") & cmd.ID'Image;
+                        ret := ret & (if I /= move_we_want.command.all'First then ", " else "") & Tree_ID_To_Text(cmd.ID);
                       end if;
                     end loop;
                     
