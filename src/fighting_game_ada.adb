@@ -219,6 +219,7 @@ procedure Fighting_Game_Ada is
           )
         );
         menu_index : Natural := 0;
+        menu_help_screen_shown : Boolean := false;
       when Stage_Select =>
         stage_entries : access Menu_Entry_Array := new Menu_Entry_Array'(Menu_Entries_Connect_Gridwise(
         Menu_Entry_Array'(
@@ -438,6 +439,8 @@ procedure Fighting_Game_Ada is
   battle_pause_movelist_x_offset : constant Scalar := 300.0;
   battle_pause_music_lower_volume : constant Float := 0.4;
   battle_unpause_music_increase_volume : constant Float := 1.0;
+  default_general_menu_select : constant Game_Input := Attack_4_Press;
+  default_general_menu_go_back : constant Game_Input := Attack_5_Press;
   
   frame_start_time : Time := Clock;
   Color_Black : ALLEGRO_COLOR;
@@ -453,6 +456,7 @@ procedure Fighting_Game_Ada is
   player_assign_keyboard_icon_bitmap : ALLEGRO_BITMAP_ACCESS;
   player_assign_player_one_icon_bitmap : ALLEGRO_BITMAP_ACCESS;
   player_assign_player_two_icon_bitmap : ALLEGRO_BITMAP_ACCESS;
+  Vivid_Green : ALLEGRO_COLOR;
   
   Allegro_Initialization_Failure : exception;
   
@@ -1069,21 +1073,29 @@ procedure Fighting_Game_Ada is
                     
                     procedure Menu_Input (Player_GIS : Game_Input_State) is
                     begin
-                      if Input_Recognized(Ev, Player_GIS, Up_Press) then
-                        state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Up);
-                        Play_Move_Sound;
-                      elsif Input_Recognized(Ev, Player_GIS, Down_Press) then
-                        state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Down);
-                        Play_Move_Sound;
-                      elsif Input_Recognized(Ev, Player_GIS, Left_Press) then
-                        state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Left);
-                        Play_Move_Sound;
-                      elsif Input_Recognized(Ev, Player_GIS, Right_Press) then
-                        state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Right);
-                        Play_Move_Sound;
-                      end if;
-                      if Input_Recognized(Ev, Player_GIS, Start_Press) or Input_Recognized(Ev, Player_GIS, Attack_4_Press) then
-                        Menu_Select_Entry(state.main_menu.all, state.menu_index);
+                      if not state.menu_help_screen_shown then
+                        if Input_Recognized(Ev, Player_GIS, Up_Press) then
+                          state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Up);
+                          Play_Move_Sound;
+                        elsif Input_Recognized(Ev, Player_GIS, Down_Press) then
+                          state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Down);
+                          Play_Move_Sound;
+                        elsif Input_Recognized(Ev, Player_GIS, Left_Press) then
+                          state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Left);
+                          Play_Move_Sound;
+                        elsif Input_Recognized(Ev, Player_GIS, Right_Press) then
+                          state.menu_index := Menu_Move(state.main_menu.all, state.menu_index, Right);
+                          Play_Move_Sound;
+                        end if;
+                        if Input_Recognized(Ev, Player_GIS, default_general_menu_select) then
+                          Menu_Select_Entry(state.main_menu.all, state.menu_index);
+                        elsif Input_Recognized(Ev, Player_GIS, Start_Press) then
+                          state.menu_help_screen_shown := true;
+                        end if;
+                      else
+                        if Input_Recognized(Ev, Player_GIS, default_general_menu_go_back) then
+                          state.menu_help_screen_shown := false;
+                        end if;
                       end if;
                     end Menu_Input;
                     procedure Menu_Input_For_P1 is begin Menu_Input(state.p1_input_state); end Menu_Input_For_P1;
@@ -1104,11 +1116,11 @@ procedure Fighting_Game_Ada is
                   state.p1_stage_index := Menu_Move(state.stage_entries.all, state.p1_stage_index, Right);
                 end if;
                 
-                if Input_Recognized(Ev, state.p1_input_state, Attack_4_Press) then
+                if Input_Recognized(Ev, state.p1_input_state, default_general_menu_select) then
                   Menu_Select_Entry(state.stage_entries.all, state.p1_stage_index);
                 end if;
 
-                if Input_Recognized(Ev, state.p1_input_state, Attack_5_Press) then
+                if Input_Recognized(Ev, state.p1_input_state, default_general_menu_go_back) then
                   Go_Back_To_Menu;
                 end if;
               when Character_Select =>
@@ -1127,11 +1139,11 @@ procedure Fighting_Game_Ada is
                         menu_index := Menu_Move(menu.all, menu_index, Right);
                       end if;
                       
-                      if Input_Recognized(Ev, GIS, Attack_4_Press) then
+                      if Input_Recognized(Ev, GIS, default_general_menu_select) then
                         Menu_Select_Entry(menu.all, menu_index);
                       end if;
                       
-                      if Input_Recognized(Ev, GIS, Attack_5_Press) then
+                      if Input_Recognized(Ev, GIS, default_general_menu_go_back) then
                         Main_Menu_Go_To_Verses;
                       end if;
                     end Char_Select_Input;
@@ -1233,7 +1245,7 @@ procedure Fighting_Game_Ada is
                         state.pause_menu_options_index := Menu_Move(state.pause_menu_options.all, state.pause_menu_options_index, Up);
                       elsif Input_Recognized(Ev, pause_player_input_state, Down_Press) then
                         state.pause_menu_options_index := Menu_Move(state.pause_menu_options.all, state.pause_menu_options_index, Down);
-                      elsif Input_Recognized(Ev, pause_player_input_state, Attack_4_Press) then
+                      elsif Input_Recognized(Ev, pause_player_input_state, default_general_menu_select) then
                         Menu_Select_Entry(state.pause_menu_options.all, state.pause_menu_options_index);
                       elsif Input_Recognized(Ev, pause_player_input_state, Start_Press) then
                         state.paused := Unpaused;
@@ -1257,7 +1269,7 @@ procedure Fighting_Game_Ada is
                         state.after_battle_index := Menu_Move(state.after_battle_options.all, state.after_battle_index, Up);
                       elsif Input_Recognized(Ev, GIS, Down_Press) then
                         state.after_battle_index := Menu_Move(state.after_battle_options.all, state.after_battle_index, Down);
-                      elsif Input_Recognized(Ev, GIS, Attack_4_Press) then
+                      elsif Input_Recognized(Ev, GIS, default_general_menu_select) then
                         Menu_Select_Entry(state.after_battle_options.all, state.after_battle_index);
                       end if;
                     end Player_Decide_After_Battle;
@@ -1295,18 +1307,37 @@ procedure Fighting_Game_Ada is
       al_draw_text(basic_font, color, Float(x_coord), Float(option_pos.Y), 0, New_String(option_text));
     end Draw_General_Option;
     
-    procedure Draw_Menu_Select_Input (Input_Name : String; Input_Effect : String) is
+    function Game_Input_Press_To_String (inp : Game_Input) return String is
+      ret : constant String := (case inp is
+        when Up_Press => "Up",
+        when Down_Press => "Down",
+        when Left_Press => "Left",
+        when Right_Press => "Right",
+        when Attack_1_Press => "Attack 1",
+        when Attack_2_Press => "Attack 2",
+        when Attack_3_Press => "Attack 3",
+        when Attack_4_Press => "Attack 4",
+        when Attack_5_Press => "Attack 5",
+        when Attack_6_Press => "Attack 6",
+        when Start_Press => "Start",
+        when others => ""
+      );
+    begin
+      return "<" & ret & ">";
+    end Game_Input_Press_To_String;
+    
+    procedure Draw_Menu_Select_Input (Input : Game_Input; Input_Effect : String) is
       select_input_instruction_x_value : constant Float := 540.0;
       select_input_instruction_y_value : constant Float := 500.0;
     begin
-      al_draw_text(basic_font, Text_Color, select_input_instruction_x_value, select_input_instruction_y_value, 0, New_String("Press <" & Input_Name & "> to " & Input_Effect & "."));
+      al_draw_text(basic_font, Text_Color, select_input_instruction_x_value, select_input_instruction_y_value, 0, New_String("Press " & Game_Input_Press_To_String(Input) & " to " & Input_Effect & "."));
     end Draw_Menu_Select_Input;
     
-    procedure Draw_Menu_Back_Input (Input_Name : String) is
+    procedure Draw_Menu_Back_Input (Input : Game_Input) is
       back_input_instruction_x_value : constant Float := 540.0;
       back_input_instruction_y_value : constant Float := 530.0;
     begin
-      al_draw_text(basic_font, Text_Color, back_input_instruction_x_value, back_input_instruction_y_value, 0, New_String("Press <" & Input_Name & "> to go back."));
+      al_draw_text(basic_font, Text_Color, back_input_instruction_x_value, back_input_instruction_y_value, 0, New_String("Press " & Game_Input_Press_To_String(Input) & " to go back."));
     end Draw_Menu_Back_Input;
     
   begin
@@ -1401,7 +1432,62 @@ procedure Fighting_Game_Ada is
           al_identity_transform(transform);
           al_use_transform(transform);
           
-          Draw_Menu_Select_Input("Attack 4", "Select");
+          if state.menu_help_screen_shown then
+            Draw_Help_Screen:
+              declare
+                type Input_Name is access String;
+                type Named_Mappings is array(GI_Press range <>) of Input_Name;
+                
+                default_named_keyboard_mappings : constant Named_Mappings := Named_Mappings'(
+                  Up_Press => new String'("[W]"),
+                  Down_Press => new String'("[S]"),
+                  Left_Press => new String'("[A]"),
+                  Right_Press => new String'("[D]"),
+                  Attack_1_Press => new String'("[U]"),
+                  Attack_2_Press => new String'("[I]"),
+                  Attack_3_Press => new String'("[O]"),
+                  Attack_4_Press => new String'("[J]"),
+                  Attack_5_Press => new String'("[K]"),
+                  Attack_6_Press => new String'("[L]")
+                );
+                default_named_controller_mappings : constant Named_Mappings := Named_Mappings'(
+                  Up_Press => new String'("[Stick/DPad Up]"),
+                  Down_Press => new String'("[Stick/DPad Down]"),
+                  Left_Press => new String'("[Stick/DPad Left]"),
+                  Right_Press => new String'("[Stick/DPad Right]"),
+                  Attack_1_Press => new String'("[Left Face Button]"),
+                  Attack_2_Press => new String'("[Top Face Button]"),
+                  Attack_3_Press => new String'("[Right Bumper]"),
+                  Attack_4_Press => new String'("[Bottom Face Button]"),
+                  Attack_5_Press => new String'("[Right Face Button]"),
+                  Attack_6_Press => new String'("[Right Trigger]")
+                );
+                
+                procedure Draw_Set_Of_Controls (Name : String; mappings : Named_Mappings; x_pos : Float; y_pos : Float) is
+                  controls_spacing : constant Float := 12.0;
+                  arrow_spacing : constant Float := 200.0;
+                begin
+                  al_draw_text(basic_font, Vivid_Green, x_pos+60.0, y_pos, 0, New_String(Name & " Controls:"));
+                  
+                  for m in mappings'Range loop
+                    al_draw_text(basic_font, Text_Color, x_pos, y_pos + (Float(GI_Press'Pos(m) + 1) * controls_spacing), 0, New_String(mappings(m).all));
+                    al_draw_text(basic_font, Text_Color, x_pos+arrow_spacing, y_pos + (Float(GI_Press'Pos(m) + 1) * controls_spacing), 0, New_String("-->"));
+                    al_draw_text(basic_font, Text_Color, x_pos+(arrow_spacing*2.0), y_pos + (Float(GI_Press'Pos(m) + 1) * controls_spacing), 0, New_String(Game_Input_Press_To_String(m)));
+                  end loop;
+                end Draw_Set_Of_Controls;
+              begin
+                al_draw_filled_rectangle(30.0, 30.0, 770.0, 570.0, Color_Black);
+                
+                Draw_Set_Of_Controls("Keyboard", default_named_keyboard_mappings, 60.0, 60.0);
+                Draw_Set_Of_Controls("Controller", default_named_controller_mappings, 60.0, 240.0);
+              end Draw_Help_Screen;
+              
+              Draw_Menu_Back_Input(default_general_menu_go_back);
+          else
+            al_draw_text(basic_font, Text_Color, 540.0, 470.0, 0, New_String("Press " & Game_Input_Press_To_String(Start_Press) & " for Help"));
+            
+            Draw_Menu_Select_Input(Attack_4_Press, "Select");
+          end if;
         when Stage_Select =>
           al_draw_bitmap(state.stage_select_background, 0.0, 0.0, 0);
           
@@ -1412,8 +1498,8 @@ procedure Fighting_Game_Ada is
           
           al_draw_bitmap(state.stage_selector_player_one, Float(state.stage_entries(state.p1_stage_index).offset.X), Float(state.stage_entries(state.p1_stage_index).offset.Y), 0);
           
-          Draw_Menu_Select_Input("Attack 4", "Select");
-          Draw_Menu_Back_Input("Attack 5");
+          Draw_Menu_Select_Input(default_general_menu_select, "Select");
+          Draw_Menu_Back_Input(default_general_menu_go_back);
         when Character_Select =>
           al_draw_bitmap(state.char_select_background, 0.0, 0.0, 0);
           
@@ -1425,8 +1511,8 @@ procedure Fighting_Game_Ada is
           al_draw_bitmap(state.char_selector_player_one, Float(state.char_entries(state.p1_char_index).offset.X), Float(state.char_entries(state.p1_char_index).offset.Y), 0);
           al_draw_bitmap(state.char_selector_player_two, Float(state.char_entries(state.p2_char_index).offset.X), Float(state.char_entries(state.p2_char_index).offset.Y), 0);
           
-          Draw_Menu_Select_Input("Attack 4", "Select");
-          Draw_Menu_Back_Input("Attack 5");
+          Draw_Menu_Select_Input(default_general_menu_select, "Select");
+          Draw_Menu_Back_Input(default_general_menu_go_back);
         when Battle =>
           
           if state.paused = Unpaused then
@@ -1540,8 +1626,8 @@ procedure Fighting_Game_Ada is
                 
                 al_draw_text(basic_font, Text_Color, 200.0, 20.0, 0, New_String("(Assumes player is facing right)"));
                 
-                Draw_Menu_Select_Input("Attack 4", "Select");
-                Draw_Menu_Back_Input("Start");
+                Draw_Menu_Select_Input(default_general_menu_select, "Select");
+                Draw_Menu_Back_Input(Start_Press);
               end Draw_Pause_Menu;
           end if;
         when Battle_Over =>
@@ -1570,7 +1656,7 @@ procedure Fighting_Game_Ada is
                   end Draw_After_Battle_Options;
               end loop;
               
-              Draw_Menu_Select_Input("Attack 4", "Select");
+              Draw_Menu_Select_Input(default_general_menu_select, "Select");
             end Draw_Victory_Screen;
       end case;
     end if;
@@ -1603,6 +1689,7 @@ begin
     basic_font := al_create_builtin_font;
     Unselected_Text_Color := al_map_rgb(227, 218, 26);
     Selected_Text_Color := al_map_rgb(251, 247, 90);
+    Vivid_Green := al_map_rgb(99, 187, 16);
     
     debug_upper_hitbox_color := al_map_rgb(250, 230, 80);
     debug_lower_hitbox_color := al_map_rgb(170, 130, 170);
