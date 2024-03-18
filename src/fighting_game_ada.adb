@@ -1836,6 +1836,7 @@ begin
                             EB.anim_frame := 0;
                           end loop;
                           
+                          Fighter.Inputs_List.Clear(Player.inputs);
                           Fighter.Active_Hitboxes.Clear(Player.attack_hitboxes);
                           Fighter.Active_Projectiles_List.Clear(Player.active_projectiles);
                           
