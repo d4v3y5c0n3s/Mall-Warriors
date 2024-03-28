@@ -31,4 +31,11 @@ package Control_Bindings is
   
   procedure Refresh_Last_Direction (GIS : in out Game_Input_State);
   
+  subtype GI_Press_No_Start is GI_Press range Up_Press .. Attack_6_Press;
+  type Input_Snapshot is array(GI_Press_No_Start) of Boolean;
+  
+  function Snapshot_Input (GIS : Game_Input_State) return Input_Snapshot;
+  
+  function Input_Recognized_Since_Snapshot (old_snapshot : Input_Snapshot; new_snapshot : Input_Snapshot; GI : Game_Input) return Boolean;
+  
 end Control_Bindings;

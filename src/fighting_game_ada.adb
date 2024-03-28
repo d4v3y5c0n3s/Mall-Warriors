@@ -153,7 +153,8 @@ procedure Fighting_Game_Ada is
   
   type Battle_Sequence is (None, Intro, Round_Start, Round_End);
   
-  type Paused_By is (Unpaused, Player_One, Player_Two);
+  type Pause_State is (Unpaused, Player_One, Player_Two);
+  subtype Paused_By is Pause_State range Player_One .. Player_Two;
   
   type Who_Won is (Player_One, Player_Two, Tied);
   
@@ -289,7 +290,7 @@ procedure Fighting_Game_Ada is
         camera_pos : Position;
         stage : Stage_Assets;
         sequence_playing : Battle_Sequence := Intro;
-        paused : Paused_By := Unpaused;
+        paused : Pause_State := Unpaused;
         round : Positive := 1;
         rounds_won_needed_to_win : Positive := 2;
         player_one_won_rounds : Natural := 0;
@@ -342,6 +343,8 @@ procedure Fighting_Game_Ada is
         1
         ));
         pause_menu_options_index : Natural := 0;
+        paused_player_last_inputs : Input_Snapshot;
+        other_player_last_inputs : Input_Snapshot;
       when Battle_Over =>
         victory_bitmap : ALLEGRO_BITMAP_ACCESS := al_load_bitmap(New_String(victory_bitmap_path));
         winner : Who_Won := Tied;
@@ -1167,66 +1170,83 @@ procedure Fighting_Game_Ada is
                         declare
                           procedure Battle_Input (GIS : Game_Input_State; F : in out Fighter.Fighter; Player_Pause : Paused_By) is
                           begin
-                            if Input_Recognized(Ev, GIS, Up_Press) then
-                              Fighter.Press_Input(F, Globals.up, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Left_Press) then
-                              Fighter.Press_Input(F, Globals.left, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Down_Press) then
-                              Fighter.Press_Input(F, Globals.down, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Right_Press) then
-                              Fighter.Press_Input(F, Globals.right, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_1_Press) then
-                              Fighter.Press_Input(F, Globals.atk_1, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_2_Press) then
-                              Fighter.Press_Input(F, Globals.atk_2, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_3_Press) then
-                              Fighter.Press_Input(F, Globals.atk_3, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_4_Press) then
-                              Fighter.Press_Input(F, Globals.atk_4, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_5_Press) then
-                              Fighter.Press_Input(F, Globals.atk_5, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_6_Press) then
-                              Fighter.Press_Input(F, Globals.atk_6, state.frame);
-                            end if;
-                            
-                            if Input_Recognized(Ev, GIS, Up_Release) then
-                              Fighter.Release_Input(F, Globals.up, state.frame);
-                            end if;
-                            
-                            if Input_Recognized(Ev, GIS, Left_Release) then
-                              Fighter.Release_Input(F, Globals.left, state.frame);
-                            end if;
-                            
-                            if Input_Recognized(Ev, GIS, Down_Release) then
-                              Fighter.Release_Input(F, Globals.down, state.frame);
-                            end if;
-                            
-                            if Input_Recognized(Ev, GIS, Right_Release) then
-                              Fighter.Release_Input(F, Globals.right, state.frame);
-                            end if;
-                            
-                            if Input_Recognized(Ev, GIS, Attack_1_Release) then
-                              Fighter.Release_Input(F, Globals.atk_1, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_2_Release) then
-                              Fighter.Release_Input(F, Globals.atk_2, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_3_Release) then
-                              Fighter.Release_Input(F, Globals.atk_3, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_4_Release) then
-                              Fighter.Release_Input(F, Globals.atk_4, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_5_Release) then
-                              Fighter.Release_Input(F, Globals.atk_5, state.frame);
-                            elsif Input_Recognized(Ev, GIS, Attack_6_Release) then
-                              Fighter.Release_Input(F, Globals.atk_6, state.frame);
-                            end if;
-                            
-                            if Input_Recognized(Ev, GIS, Start_Press) then
-                              state.paused := Player_Pause;
-                              Make_Music_Quieter:
-                                declare
-                                  success : constant Boolean := Boolean(al_set_audio_stream_gain(state.stage.music, battle_pause_music_lower_volume));
-                                begin
-                                  null;
-                                end Make_Music_Quieter;
+                            if state.paused = Unpaused then
+                              if Input_Recognized(Ev, GIS, Up_Press) then
+                                Fighter.Press_Input(F, Globals.up, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Left_Press) then
+                                Fighter.Press_Input(F, Globals.left, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Down_Press) then
+                                Fighter.Press_Input(F, Globals.down, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Right_Press) then
+                                Fighter.Press_Input(F, Globals.right, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_1_Press) then
+                                Fighter.Press_Input(F, Globals.atk_1, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_2_Press) then
+                                Fighter.Press_Input(F, Globals.atk_2, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_3_Press) then
+                                Fighter.Press_Input(F, Globals.atk_3, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_4_Press) then
+                                Fighter.Press_Input(F, Globals.atk_4, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_5_Press) then
+                                Fighter.Press_Input(F, Globals.atk_5, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_6_Press) then
+                                Fighter.Press_Input(F, Globals.atk_6, state.frame);
+                              end if;
+                              
+                              if Input_Recognized(Ev, GIS, Up_Release) then
+                                Fighter.Release_Input(F, Globals.up, state.frame);
+                              end if;
+                              
+                              if Input_Recognized(Ev, GIS, Left_Release) then
+                                Fighter.Release_Input(F, Globals.left, state.frame);
+                              end if;
+                              
+                              if Input_Recognized(Ev, GIS, Down_Release) then
+                                Fighter.Release_Input(F, Globals.down, state.frame);
+                              end if;
+                              
+                              if Input_Recognized(Ev, GIS, Right_Release) then
+                                Fighter.Release_Input(F, Globals.right, state.frame);
+                              end if;
+                              
+                              if Input_Recognized(Ev, GIS, Attack_1_Release) then
+                                Fighter.Release_Input(F, Globals.atk_1, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_2_Release) then
+                                Fighter.Release_Input(F, Globals.atk_2, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_3_Release) then
+                                Fighter.Release_Input(F, Globals.atk_3, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_4_Release) then
+                                Fighter.Release_Input(F, Globals.atk_4, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_5_Release) then
+                                Fighter.Release_Input(F, Globals.atk_5, state.frame);
+                              elsif Input_Recognized(Ev, GIS, Attack_6_Release) then
+                                Fighter.Release_Input(F, Globals.atk_6, state.frame);
+                              end if;
+                              
+                              if Input_Recognized(Ev, GIS, Start_Press) then
+                                state.paused := Player_Pause;
+                                
+                                -- store both player's current inputs here
+                                state.paused_player_last_inputs := Snapshot_Input((case Player_Pause is
+                                  when Player_One =>
+                                    state.p1_input_state,
+                                  when Player_Two =>
+                                    state.p2_input_state
+                                ));
+                                state.other_player_last_inputs := Snapshot_Input((case Player_Pause is
+                                  when Player_One =>
+                                    state.p2_input_state,
+                                  when Player_Two =>
+                                    state.p1_input_state
+                                ));
+                                
+                                Make_Music_Quieter:
+                                  declare
+                                    success : constant Boolean := Boolean(al_set_audio_stream_gain(state.stage.music, battle_pause_music_lower_volume));
+                                  begin
+                                    null;
+                                  end Make_Music_Quieter;
+                              end if;
                             end if;
                           end Battle_Input;
                           procedure Player_Battle_P1 is begin Battle_Input(state.p1_input_state, state.player_one, Player_One); end Player_Battle_P1;
@@ -1239,7 +1259,88 @@ procedure Fighting_Game_Ada is
                 else
                   Pause_Menu_Input:
                     declare
-                      pause_player_input_state : constant Game_Input_State := (if state.paused = Player_One then state.p1_input_state else state.p2_input_state);
+                      pause_player_input_state : constant Game_Input_State :=  (case state.paused is
+                        when Player_One =>
+                          state.p1_input_state,
+                        when others =>
+                          state.p2_input_state
+                      );
+                      
+                      other_player_input_state : constant Game_Input_State := (case state.paused is
+                        when Player_One =>
+                          state.p2_input_state,
+                        when others =>
+                          state.p1_input_state
+                      );
+                      
+                      pause_player_current_snapshot : constant Input_Snapshot := Snapshot_Input(pause_player_input_state);
+                      
+                      other_player_current_snapshot : constant Input_Snapshot := Snapshot_Input(other_player_input_state);
+                      
+                      procedure Playback_Player_Inputs (F : in out Fighter.Fighter; last_inputs : Input_Snapshot; current_inputs : Input_Snapshot) is
+                      begin
+                        -- Playback other player's inputs here
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Up_Press) then
+                          Fighter.Press_Input(F, Globals.up, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Left_Press) then
+                          Fighter.Press_Input(F, Globals.left, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Down_Press) then
+                          Fighter.Press_Input(F, Globals.down, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Right_Press) then
+                          Fighter.Press_Input(F, Globals.right, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_1_Press) then
+                          Fighter.Press_Input(F, Globals.atk_1, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_2_Press) then
+                          Fighter.Press_Input(F, Globals.atk_2, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_3_Press) then
+                          Fighter.Press_Input(F, Globals.atk_3, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_4_Press) then
+                          Fighter.Press_Input(F, Globals.atk_4, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_5_Press) then
+                          Fighter.Press_Input(F, Globals.atk_5, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_6_Press) then
+                          Fighter.Press_Input(F, Globals.atk_6, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Up_Release) then
+                          Fighter.Release_Input(F, Globals.up, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Left_Release) then
+                          Fighter.Release_Input(F, Globals.left, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Down_Release) then
+                          Fighter.Release_Input(F, Globals.down, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Right_Release) then
+                          Fighter.Release_Input(F, Globals.right, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_1_Release) then
+                          Fighter.Release_Input(F, Globals.atk_1, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_2_Release) then
+                          Fighter.Release_Input(F, Globals.atk_2, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_3_Release) then
+                          Fighter.Release_Input(F, Globals.atk_3, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_4_Release) then
+                          Fighter.Release_Input(F, Globals.atk_4, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_5_Release) then
+                          Fighter.Release_Input(F, Globals.atk_5, state.frame);
+                        end if;
+                        if Input_Recognized_Since_Snapshot(last_inputs, current_inputs, Attack_6_Release) then
+                          Fighter.Release_Input(F, Globals.atk_6, state.frame);
+                        end if;
+                      end Playback_Player_Inputs;
                     begin
                       if Input_Recognized(Ev, pause_player_input_state, Up_Press) then
                         state.pause_menu_options_index := Menu_Move(state.pause_menu_options.all, state.pause_menu_options_index, Up);
@@ -1250,6 +1351,14 @@ procedure Fighting_Game_Ada is
                       elsif Input_Recognized(Ev, pause_player_input_state, Start_Press) then
                         state.paused := Unpaused;
                         state.pause_menu_options_index := 0;
+                        
+                        if state.paused = Player_One then
+                          Playback_Player_Inputs(state.player_one, state.paused_player_last_inputs, pause_player_current_snapshot);
+                          Playback_Player_Inputs(state.player_two, state.other_player_last_inputs, other_player_current_snapshot);
+                        else
+                          Playback_Player_Inputs(state.player_two, state.paused_player_last_inputs, pause_player_current_snapshot);
+                          Playback_Player_Inputs(state.player_one, state.other_player_last_inputs, other_player_current_snapshot);
+                        end if;
                         
                         Increase_Volume_To_Normal:
                           declare
